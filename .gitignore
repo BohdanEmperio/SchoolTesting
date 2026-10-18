@@ -1,0 +1,37 @@
+# Секреты и конфиденциальные настройки
+.env
+set_password.py
+
+# Документы и протоколы с персональными данными
+Протокол_*.docx
+*.docx
+!PROJECT_IMPROVEMENT_PLAN.docx
+backups/
+
+# Виртуальное окружение
+.venv/
+venv/
+env/
+
+# Кэш и компиляция Python
+__pycache__/
+*.py[cod]
+*$py.class
+.ruff_cache/
+.pytest_cache/
+
+# Сборки, дистрибутивы и логи
+build/
+dist/
+logs/
+*.log
+
+# Локальные базы данных
+*.db
+*.sqlite
+*.sqlite3
+
+# Служебные папки редакторов и инструментов
+.vscode/
+.context_builder/
+!assets/templates/*.docx

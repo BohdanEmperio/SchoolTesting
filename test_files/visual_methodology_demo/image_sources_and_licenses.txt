@@ -1,0 +1,31 @@
+ИСТОЧНИКИ И ЛИЦЕНЗИИ ДЕМО-ИЗОБРАЖЕНИЙ
+======================================
+
+Изображения скачаны с Wikimedia Commons в виде JPEG-миниатюр шириной
+1280 пикселей. Храните этот файл вместе с изображениями, чтобы не потерять
+сведения об источниках и атрибуции. Перед распространением файлов за пределами
+этого проекта проверьте актуальные условия лицензий на страницах источников.
+
+01_forest_path.jpg
+Название: Forest path through a deciduous forest in spring, Finland
+Автор: Sanzzu
+Лицензия: Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0)
+Источник: https://commons.wikimedia.org/wiki/File:Forest_path_through_a_deciduous_forest_in_spring,_Finland.jpg
+
+02_mountain_lake.jpg
+Название: Ergaki, Mountain lake Skazka, Rock formations, Sayan Mountains, Russia
+Автор: Vyacheslav Argenberg
+Лицензия: Creative Commons Attribution 4.0 (CC BY 4.0)
+Источник: https://commons.wikimedia.org/wiki/File:Ergaki,_Mountain_lake_Skazka,_Rock_formations,_Sayan_Mountains,_Russia.jpg
+
+03_sunflower_sunset.jpg
+Название: Sunflower field at sunset
+Автор: 
+Лицензия: CC0
+Источник: https://commons.wikimedia.org/wiki/File:Sunflower_field_at_sunset.jpg
+
+04_coastal_beach.jpg
+Название: Coastal erosion at Shoalwater Bay beach, Western Australia, June 2024 01
+Автор: Calistemon
+Лицензия: Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0)
+Источник: https://commons.wikimedia.org/wiki/File:Coastal_erosion_at_Shoalwater_Bay_beach,_Western_Australia,_June_2024_01.jpg
