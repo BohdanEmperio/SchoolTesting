@@ -1,0 +1,9 @@
+{
+  "title": "School_Psychology_Testing_App",
+  "description": "Школьное приложение для психологического тестирования.",
+  "upload_type": "software",
+  "creators": [
+    { "name": "Фамилия, Имя", "affiliation": "Название школы" }
+  ],
+  "keywords": ["психология", "тестирование", "школа"]
+}
