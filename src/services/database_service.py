@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-\
-#src/service/database_service.py
+# src/service/database_service.py
 """
 ================================================================================
 School Psychology Testing App - Database Service (Ultra Master V9.0)
@@ -43,7 +43,7 @@ class DatabaseService:
     Внедрена защита от утечек памяти и автоматизация SQL-транзакций.
     """
 
-    _instance: Optional['DatabaseService'] = None
+    _instance: Optional["DatabaseService"] = None
     _connection_pool: Optional[pool.SimpleConnectionPool] = None
     _for_tests: bool = False
 
@@ -58,9 +58,9 @@ class DatabaseService:
     def __new__(cls, for_tests: bool = False):
         """
         Механика паттерна Singleton (Одиночка).
-        Предотвращает создание конкурирующих соединений и переполнение 
+        Предотвращает создание конкурирующих соединений и переполнение
         пула ресурсов PostgreSQL при многократных вызовах DatabaseService().
-        
+
         :param for_tests: Если True, возвращает изолированный объект вне синглтона.
         """
         if for_tests:
@@ -71,21 +71,21 @@ class DatabaseService:
             # Сбрасываем пул для тестового объекта, чтобы он создал свой собственный
             instance._connection_pool = None
             return instance
-        
+
         # Основной сценарий: возврат существующего или создание единственного экземпляра
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             # Флаг тестов для основного синглтона всегда False
             cls._instance._for_tests = False
-            
+
         return cls._instance
 
     def __init__(self, for_tests: bool = False):
         """
         Инициализация ресурсов при обращении к сервису.
-        
+
         Примечание: В Python __init__ вызывается каждый раз при вызове класса.
-        Проверка 'if self._connection_pool is None' критически важна, чтобы 
+        Проверка 'if self._connection_pool is None' критически важна, чтобы
         не перезапускать пул соединений при получении существующего объекта.
         """
         if self._connection_pool is None:
@@ -94,7 +94,9 @@ class DatabaseService:
             self._initialize_pool()
         else:
             # Этот лог поможет в дебаге понять, что Singleton работает исправно
-            logger.debug("DatabaseService: Пул уже активен, повторная инициализация пропущена.")
+            logger.debug(
+                "DatabaseService: Пул уже активен, повторная инициализация пропущена."
+            )
 
     def ping(self) -> bool:
         """Проверка корректности подключения к PostgreSQL без полной инициализации бизнес-логики."""
@@ -106,8 +108,6 @@ class DatabaseService:
         except Exception as exc:
             logger.error(f"DatabaseService: Проверка подключения не удалась: {exc}")
             return False
-            
-            
 
     def _initialize_pool(self):
         """
@@ -119,41 +119,41 @@ class DatabaseService:
         import sys
 
         # Сохраняем оригинальный PATH, чтобы восстановить его позже
-        original_path = os.environ.get('PATH', '')
+        original_path = os.environ.get("PATH", "")
 
         # ШАГ 1: Изоляция от системных путей Windows.
-        os.environ['PGPASSFILE'] = os.devnull
-        os.environ['PGSERVICEFILE'] = os.devnull
-        os.environ['PGCLIENTENCODING'] = 'utf-8'
-        
-        # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: 
+        os.environ["PGPASSFILE"] = os.devnull
+        os.environ["PGSERVICEFILE"] = os.devnull
+        os.environ["PGCLIENTENCODING"] = "utf-8"
+
+        # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ:
         # Временно очищаем PATH, оставляя только системные папки Windows.
         # Это не даст psycopg2 споткнуться о папку "Богдан" при инициализации.
-        if sys.platform == 'win32':
-            os.environ['PATH'] = "C:\\Windows\\system32;C:\\Windows"
+        if sys.platform == "win32":
+            os.environ["PATH"] = "C:\\Windows\\system32;C:\\Windows"
 
-        logger.debug(f"Инициализация подключения к БД: {settings.DB_HOST}:{settings.DB_PORT}")
+        logger.debug(
+            f"Инициализация подключения к БД: {settings.DB_HOST}:{settings.DB_PORT}"
+        )
 
         try:
             # ШАГ 2: Формируем параметры словарем (надежнее для драйвера)
             db_params = {
-                'host': str(settings.DB_HOST).strip(),
-                'port': int(settings.DB_PORT),  # <--- УБРАЛИ .strip() ЗДЕСЬ
-                'database': str(settings.DB_NAME).strip(),
-                'user': str(settings.DB_USER).strip(),
-                'password': str(settings.DB_PASSWORD).strip(),
-                'options': f"-c search_path={str(settings.DB_SCHEMA).strip()} -c timezone=Asia/Irkutsk",
-                'connect_timeout': 10,
-                'client_encoding': 'UTF8'
+                "host": str(settings.DB_HOST).strip(),
+                "port": int(settings.DB_PORT),  # <--- УБРАЛИ .strip() ЗДЕСЬ
+                "database": str(settings.DB_NAME).strip(),
+                "user": str(settings.DB_USER).strip(),
+                "password": str(settings.DB_PASSWORD).strip(),
+                "options": f"-c search_path={str(settings.DB_SCHEMA).strip()} -c timezone=Asia/Irkutsk",
+                "connect_timeout": 10,
+                "client_encoding": "UTF8",
             }
 
             # ШАГ 3: Инициализация пула
             self._connection_pool = ThreadedConnectionPool(
-                minconn=5,
-                maxconn=35,
-                **db_params
+                minconn=5, maxconn=35, **db_params
             )
-            
+
             logger.info(
                 f"✅ DatabaseService: Пул развернут успешно. "
                 f"Целевая схема: '{settings.DB_SCHEMA}'."
@@ -163,23 +163,23 @@ class DatabaseService:
             detailed_err = f"Критический сбой инициализации пула данных: {error}"
             logger.critical(f"❌ {detailed_err}")
             raise error
-        
+
         finally:
-            # ОБЯЗАТЕЛЬНО восстанавливаем PATH, чтобы другие части программы 
+            # ОБЯЗАТЕЛЬНО восстанавливаем PATH, чтобы другие части программы
             # (например, вызов браузера или работа с PDF) не сломались.
-            os.environ['PATH'] = original_path
+            os.environ["PATH"] = original_path
 
     @contextmanager
     def get_connection(self) -> Generator:
         """
         🚀 Высокоуровневый контекстный менеджер для безопасной аренды сессии из пула.
-        
+
         Обеспечивает:
         1. Проверку готовности инфраструктуры БД перед началом работы.
         2. Атомарное получение свободного сокета.
         3. Гарантированный возврат (RELEASE) коннекта в пул через блок finally.
         4. Предотвращение 'утечек соединений', которые приводят к зависанию Postgres.
-        
+
         :return: Generator, выдающий объект соединения psycopg2.connection
         :raises RuntimeError: Если пул соединений не был проинициализирован.
         :raises Exception: Если не удалось арендовать коннект (например, достигнут лимит maxconn).
@@ -197,12 +197,14 @@ class DatabaseService:
             # Арендуем коннект из ThreadedConnectionPool
             # Если все соединения заняты, поток будет ожидать освобождения (блокирующая операция)
             active_connection = self._connection_pool.getconn()
-            
+
             # На всякий случай проверяем состояние сокета (мгновенный ping базы)
             # Это исключает ошибки 'connection already closed', если Postgres упал и поднялся
             if active_connection.closed:
-                logger.warning("⚠️ Получено закрытое соединение из пула. Пытаемся восстановить...")
-            
+                logger.warning(
+                    "⚠️ Получено закрытое соединение из пула. Пытаемся восстановить..."
+                )
+
             # Передаем соединение во внешний код (в блок 'with' вызывающего метода)
             yield active_connection
 
@@ -221,21 +223,22 @@ class DatabaseService:
                     logger.debug("📡 Соединение успешно возвращено в пул ресурсов.")
                 except Exception as put_err:
                     # Это случается крайне редко (если пул был закрыт из другого потока)
-                    logger.error(f"⚠️ Не удалось корректно вернуть коннект в пул: {put_err}")
-                    
+                    logger.error(
+                        f"⚠️ Не удалось корректно вернуть коннект в пул: {put_err}"
+                    )
 
     @contextmanager
     def get_cursor(self):
         """
         💎 Мастер-метод управления транзакциями (Transactional Facade).
-        
+
         Реализует паттерн Unit of Work:
         1. Арендует соединение из пула.
         2. Открывает изолированный курсор для выполнения SQL.
         3. Выполняет автоматический COMMIT, если блок 'with' завершился успешно.
         4. Производит экстренный ROLLBACK в случае любого исключения.
         5. Гарантированно освобождает ресурсы (закрытие курсора).
-        
+
         Позволяет писать чистый код без постоянных commit/rollback в бизнес-логике.
         """
         # Арендуем соединение через ранее созданный контекстный менеджер
@@ -243,33 +246,35 @@ class DatabaseService:
             # Инициализация курсора
             # Используем стандартный курсор для повышения производительности (выборка в виде Tuple)
             sql_cursor = active_connection.cursor()
-            
+
             try:
                 # Передаем управление в блок 'with', где будет реальный SQL-запрос
                 yield sql_cursor
-                
+
                 # Если выполнение в вызывающем коде прошло успешно (не вылетело Exception),
                 # фиксируем все изменения в базе данных физически.
                 active_connection.commit()
                 logger.debug("✅ SQL Транзакция успешно зафиксирована (Committed).")
-                
+
             except Exception as transaction_fail:
-                # В случае любой ошибки (программной или серверной) — 
+                # В случае любой ошибки (программной или серверной) —
                 # ОБЯЗАТЕЛЬНО отменяем все изменения в рамках этого курсора.
                 # Это предотвращает попадание в базу 'сломанных' или неполных данных.
                 active_connection.rollback()
-                
+
                 # Собираем детализированный отчет об ошибке для лога
                 error_type = type(transaction_fail).__name__
-                logger.error(f"⚠️ БД КРИТИЧЕСКИЙ СБОЙ: [{error_type}] -> {transaction_fail}")
-                
+                logger.error(
+                    f"⚠️ БД КРИТИЧЕСКИЙ СБОЙ: [{error_type}] -> {transaction_fail}"
+                )
+
                 # Выводим полный Traceback для отладки сложной логики (например, ошибки в триггерах)
                 # Убедитесь, что 'import traceback' есть в начале файла
                 traceback.print_exc()
-                
+
                 # Пробрасываем ошибку выше, чтобы UI мог показать уведомление пользователю
                 raise transaction_fail
-                
+
             finally:
                 # В конце жизненного цикла курсора освобождаем ресурсы PostgreSQL
                 # (Курсор закрывается всегда, независимо от успеха транзакции)
@@ -304,17 +309,39 @@ class DatabaseService:
             (school_id, academic_year_id, class_name, grade_level, letter, is_active)
             VALUES (%s, %s, %s, %s, %s, TRUE) RETURNING id;
         """
-        data_values = (self.DEFAULT_SCHOOL_ID, self.DEFAULT_YEAR_ID, title, parallel, letter)
+        data_values = (
+            self.DEFAULT_SCHOOL_ID,
+            self.DEFAULT_YEAR_ID,
+            title,
+            parallel,
+            letter,
+        )
         with self.get_cursor() as cursor:
             cursor.execute(sql_command, data_values)
             return cursor.fetchone()[0]
 
-    def update_class(self, cid: str, new_name: str):
+    def update_class(
+        self,
+        cid: str,
+        new_name: str,
+        grade_parsed: Optional[int] = None,
+        letter: Optional[str] = None,
+    ):
         """Изменяет имя класса с коррекцией его уровня."""
-        grade_parsed = int(''.join(filter(str.isdigit, new_name)) or 0)
+        if grade_parsed is None or letter is None:
+            match = re.fullmatch(r"\s*(\d{1,2})\s*([A-Za-zА-Яа-яЁё])\s*", new_name or "")
+            if not match:
+                raise ValueError("Введите класс в формате «5Б» (номер и одна буква).")
+            grade_parsed = int(match.group(1))
+            if grade_parsed < 1:
+                raise ValueError("Номер класса должен быть положительным числом.")
+            letter = match.group(2).upper()
+            new_name = f"{grade_parsed}{letter}"
         with self.get_cursor() as cur:
-            cur.execute("UPDATE psychology.classes SET class_name=%s, grade_level=%s WHERE id=%s", 
-                        (new_name, grade_parsed, cid))
+            cur.execute(
+                "UPDATE psychology.classes SET class_name=%s, grade_level=%s, letter=%s WHERE id=%s",
+                (new_name, grade_parsed, letter, cid),
+            )
 
     def delete_class(self, cid: str):
         """Мгновенное удаление класса по первичному ключу."""
@@ -322,7 +349,7 @@ class DatabaseService:
             cursor.execute("DELETE FROM psychology.classes WHERE id = %s", (cid,))
             logger.info(f"Справочник: Класс ID {cid} удален.")
 
-   # ==========================================================================
+    # ==========================================================================
     # 🎓 [БЛОК 2] : КАРТОТЕКА УЧАЩИХСЯ (ПОЛНАЯ СИНХРОНИЗАЦИЯ С БД)
     # ==========================================================================
 
@@ -349,7 +376,7 @@ class DatabaseService:
         if class_filter_uuid:
             query_sql += " AND s.class_id = %s"
             args_val.append(class_filter_uuid)
-        
+
         with self.get_cursor() as cursor:
             # Сортировка по фамилии в БД (байты тоже сортируются по алфавиту)
             cursor.execute(query_sql + " ORDER BY s.last_name_enc ASC", args_val)
@@ -430,7 +457,9 @@ class DatabaseService:
             )
             if consent_given:
                 self._insert_student_consent(cursor, student_id)
-            logger.info(f"✅ БД: Ученик {l_name} успешно зарегистрирован с метаданными.")
+            logger.info(
+                f"✅ БД: Ученик {l_name} успешно зарегистрирован с метаданными."
+            )
             return student_id
 
     def add_student_with_account(
@@ -468,33 +497,55 @@ class DatabaseService:
             )
             return student_id
 
-    def update_student(self, sid: str, f_n: str, l_n: str, m_n: str, 
-                       birth_date: str, gender: str, c_id: str):
+    def update_student(
+        self,
+        sid: str,
+        f_n: str,
+        l_n: str,
+        m_n: str,
+        birth_date: str,
+        gender: str,
+        c_id: str,
+    ):
         """Обновление ФИО, пола и даты рождения."""
-        m_bytes = m_n.encode('utf-8') if m_n else None
-        
+        m_bytes = m_n.encode("utf-8") if m_n else None
+
         update_query = """
             UPDATE psychology.students 
             SET first_name_enc=%s, last_name_enc=%s, middle_name_enc=%s, 
                 birth_date=%s, gender=%s, class_id=%s, updated_at=CURRENT_TIMESTAMP 
             WHERE id=%s;
         """
-        params = (f_n.encode('utf-8'), l_n.encode('utf-8'), m_bytes, birth_date, gender, c_id, sid)
-        
+        params = (
+            f_n.encode("utf-8"),
+            l_n.encode("utf-8"),
+            m_bytes,
+            birth_date,
+            gender,
+            c_id,
+            sid,
+        )
+
         with self.get_cursor() as cur:
             cur.execute(update_query, params)
             logger.info(f"💾 БД: Данные ученика (ID: {sid}) обновлены.")
 
     def delete_student(self, stud_uuid: str):
-        """Удаление ученика (используется ON DELETE CASCADE в зависимых таблицах)."""
+        """Архивирует ученика: результаты сохраняются, вход в систему закрывается."""
         with self.get_cursor() as cur:
-            cur.execute("DELETE FROM psychology.students WHERE id = %s;", (stud_uuid,))
-            logger.warning(f"🚮 БД: Анкета {stud_uuid} полностью удалена из системы.")
+            cur.execute(
+                "UPDATE psychology.students SET is_active = FALSE WHERE id = %s;",
+                (stud_uuid,),
+            )
+            cur.execute(
+                "UPDATE psychology.users SET is_active = FALSE WHERE student_id = %s;",
+                (stud_uuid,),
+            )
+            logger.info(f"БД: ученик {stud_uuid} перемещён в архив.")
 
     # ==========================================================================
     # 🔐 [БЛОК 3] : МОДУЛИ ДОСТУПА И БЕЗОПАСНОСТИ
     # ==========================================================================
-
 
     def get_student_consent(self, student_uuid: str) -> bool:
         """Проверка наличия подтвержденного согласия на обработку ПДн по 152-ФЗ."""
@@ -524,10 +575,13 @@ class DatabaseService:
         """
         with self.get_cursor() as cur:
             cur.execute(sql, (student_uuid, consent))
-            logger.info(f"📋 БД: Согласие 152-ФЗ для ученика {student_uuid} установлено в {consent}")
+            logger.info(
+                f"📋 БД: Согласие 152-ФЗ для ученика {student_uuid} установлено в {consent}"
+            )
 
-
-    def create_student_account(self, student_uuid: str, login_str: str, hashed_pass: str):
+    def create_student_account(
+        self, student_uuid: str, login_str: str, hashed_pass: str
+    ):
         """Привязывает запись учащегося к системе входа в личный кабинет."""
         sql = """
             INSERT INTO psychology.users (login, password_hash, role, student_id, is_active, is_verified)
@@ -541,7 +595,10 @@ class DatabaseService:
     def revoke_student_access(self, student_uuid: str):
         """Мгновенное аннулирование доступа."""
         with self.get_cursor() as cur:
-            cur.execute("UPDATE psychology.users SET is_active=FALSE WHERE student_id=%s", (student_uuid,))
+            cur.execute(
+                "UPDATE psychology.users SET is_active=FALSE WHERE student_id=%s",
+                (student_uuid,),
+            )
 
     def get_student_profile(self, user_uuid: str) -> Optional[Tuple]:
         """Считывает зашифрованные поля имени через связь users->students."""
@@ -603,7 +660,7 @@ class DatabaseService:
                 ),
             )
             return str(cur.fetchone()[0])
-        
+
     def update_test_metadata(
         self,
         test_id: str,
@@ -614,10 +671,10 @@ class DatabaseService:
         config: Optional[Dict[str, Any]] = None,
     ):
         """
-        🛡️ Обновление текстовых полей теста. 
+        🛡️ Обновление текстовых полей теста.
         Исправлена ошибка адаптации UUID: передаем t_id как строку.
         """
-      
+
         sql_query = """
             UPDATE psychology.psychological_tests 
             SET test_code = %s, 
@@ -631,7 +688,7 @@ class DatabaseService:
         try:
             # Валидируем, что это корректный UUID
             target_uuid = uuid.UUID(str(test_id))
-            
+
             with self.get_cursor() as cursor:
                 # ✅ ИСПРАВЛЕНО: Превращаем объект UUID обратно в строку через str()
                 cursor.execute(
@@ -641,7 +698,11 @@ class DatabaseService:
                         name,
                         desc,
                         instr,
-                        json.dumps(config, ensure_ascii=False) if config is not None else None,
+                        (
+                            json.dumps(config, ensure_ascii=False)
+                            if config is not None
+                            else None
+                        ),
                         str(target_uuid),
                     ),
                 )
@@ -650,7 +711,6 @@ class DatabaseService:
             logger.error(f"Metadata Update Error: {e}")
             raise e
 
-    
     def delete_test(self, test_id: str):
         """
         Archive a methodology without deleting its completed sessions or responses.
@@ -733,31 +793,41 @@ class DatabaseService:
         """
         with self.get_cursor() as cur:
             # 1. Загрузка Свойств (Таблица psychological_tests)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT test_code, test_name, description, instructions, config
-                FROM psychology.psychological_tests 
+                FROM psychology.psychological_tests
                 WHERE id = %s
-            """, (test_id,))
+            """,
+                (test_id,),
+            )
             main_data = cur.fetchone()
-            
+
             # Защита: если тест не найден в базе, возвращаем пустой "черновик"
             if not main_data:
                 logger.warning(f"Metadata fail: Тест {test_id} не найден.")
-                return [], [], {
-                    "code": "",
-                    "name": "Тест не найден",
-                    "desc": "",
-                    "instructions": "",
-                    "test_mode": "yes_no",
-                }
+                return (
+                    [],
+                    [],
+                    {
+                        "code": "",
+                        "name": "Тест не найден",
+                        "desc": "",
+                        "instructions": "",
+                        "test_mode": "yes_no",
+                    },
+                )
 
             # 2. Загрузка Листа Вопросов (Таблица test_questions)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, question_text, options, order_index, question_type, media_content
-                FROM psychology.test_questions 
+                FROM psychology.test_questions
                 WHERE test_id = %s AND is_active = TRUE
                 ORDER BY order_index ASC
-            """, (test_id,))
+            """,
+                (test_id,),
+            )
             question_rows = cur.fetchall()
             media_by_question = self._get_question_media(
                 cur, [str(row[0]) for row in question_rows]
@@ -774,37 +844,49 @@ class DatabaseService:
                 }
                 for row in question_rows
             ]
-            
+
             # 3. Загрузка Правил Оценки (Таблица test_scales)
-            # ✨ ИСПРАВЛЕНО: Добавлен coefficient в SELECT
-            cur.execute("""
-                SELECT 
-                    scale_name,      -- [0] Фактор
-                    scale_code,      -- [1] Маппинг №№ вопросов
-                    min_score,       -- [2]
-                    max_score,       -- [3]
-                    interpretation,  -- [4] Текст заключения
-                    coefficient      -- [5] КОЭФФИЦИЕНТ (Теперь подтянется из БД)
-                FROM psychology.test_scales 
-                WHERE test_id = %s AND is_active = TRUE
-                ORDER BY scale_name ASC;
-            """, (test_id,))
+            # ✅ ИСПРАВЛЕНО: номера вопросов берутся из question_scale_mapping,
+            # а не из scale_code (там хранится метка SCALE_N, а не номера).
+            cur.execute(
+                """
+                SELECT
+                    s.scale_name,                                      -- [0] Фактор
+                    COALESCE(string_agg(q.order_index::text, ','
+                             ORDER BY q.order_index), '') AS mapping,  -- [1] №№ вопросов
+                    s.min_score,                                       -- [2]
+                    s.max_score,                                       -- [3]
+                    s.interpretation,                                  -- [4] Текст заключения
+                    s.coefficient                                      -- [5] Коэффициент
+                FROM psychology.test_scales s
+                LEFT JOIN psychology.question_scale_mapping m ON m.scale_id = s.id
+                LEFT JOIN psychology.test_questions q
+                       ON q.id = m.question_id AND q.is_active = TRUE
+                WHERE s.test_id = %s AND s.is_active = TRUE
+                GROUP BY s.id, s.scale_name, s.min_score, s.max_score,
+                         s.interpretation, s.coefficient
+                ORDER BY s.scale_name ASC;
+            """,
+                (test_id,),
+            )
             scales = cur.fetchall()
-            
+
             # Интеграция данных в словарь мета-информации (Tab 1)
             config = main_data[4] or {}
             if isinstance(config, str):
                 config = json.loads(config)
 
             meta = {
-                'code': str(main_data[0] or ''), 
-                'name': str(main_data[1] or ''), 
-                'desc': str(main_data[2] or ''), 
-                'instructions': str(main_data[3] or ''),
-                'test_mode': str(config.get("test_mode", "yes_no")),
+                "code": str(main_data[0] or ""),
+                "name": str(main_data[1] or ""),
+                "desc": str(main_data[2] or ""),
+                "instructions": str(main_data[3] or ""),
+                "test_mode": str(config.get("test_mode", "yes_no")),
             }
-            
-            logger.info(f"DB -> UI: Структура теста {meta['name']} выгружена (Вопр: {len(questions)}, шкал: {len(scales)})")
+
+            logger.info(
+                f"DB -> UI: Структура теста {meta['name']} выгружена (Вопр: {len(questions)}, шкал: {len(scales)})"
+            )
             return questions, scales, meta
 
     def save_test_structure(
@@ -815,11 +897,9 @@ class DatabaseService:
         metadata: Optional[Dict[str, Any]] = None,
     ):
         """
-        🚀 СИНХРОНИЗАЦИЯ СТРУКТУРЫ ТЕСТА И РАСЧЕТНЫХ ШКАЛ (V13.0).
-        Сохраняет:
-        1. Вопросы (test_questions).
-        2. Шкалы (test_scales) с системными кодами SCALE_1..SCALE_9.
-        3. Таблицу связей (question_scale_mapping) для процедуры calculate_osr_session.
+        🚀 СИНХРОНИЗАЦИЯ СТРУКТУРЫ ТЕСТА И РАСЧЕТНЫХ ШКАЛ.
+        Сохраняет вопросы, шкалы (SCALE_1..SCALE_N) и связи question_scale_mapping.
+        Шкала без номеров вопросов не сохраняется: это защищает ключ методики.
         """
         logger.info(
             f"Начало обновления теста ID: {test_id}. "
@@ -829,7 +909,7 @@ class DatabaseService:
         with self.get_connection() as connection:
             connection.autocommit = False
             cursor = connection.cursor()
-            
+
             try:
                 test_id_str = str(uuid.UUID(str(test_id)))
                 cursor.execute(f"SET search_path TO {settings.DB_SCHEMA}, public;")
@@ -874,8 +954,8 @@ class DatabaseService:
                     if cursor.rowcount != 1:
                         raise ValueError(f"Методика {test_id_str} не найдена.")
 
-                # Keep previous question and scale rows so completed sessions retain
-                # their foreign-key targets and historical report data.
+                # Старые версии вопросов и шкал не удаляются, а архивируются:
+                # завершённые сессии продолжают на них ссылаться.
                 cursor.execute(
                     "UPDATE test_questions SET is_active = FALSE "
                     "WHERE test_id = %s AND is_active = TRUE;",
@@ -887,18 +967,19 @@ class DatabaseService:
                     (test_id_str,),
                 )
 
-                # 2. Store the new active question structure.
+                # 1. Новая активная версия вопросов
                 order_to_qid: Dict[int, str] = {}
                 for q in questions:
-                    opt_data = q['options']
+                    opt_data = q["options"]
                     if isinstance(opt_data, str):
                         opt_data = json.loads(opt_data)
                     media_content = q.get("media_content", {})
                     if isinstance(media_content, str):
                         media_content = json.loads(media_content)
 
-                    cursor.execute("""
-                        INSERT INTO test_questions 
+                    cursor.execute(
+                        """
+                        INSERT INTO test_questions
                         (
                             test_id, question_text, question_type, order_index,
                             options, media_content, is_active
@@ -906,15 +987,17 @@ class DatabaseService:
                         VALUES (%s, %s, %s::psychology.question_type_enum,
                                 %s, %s::jsonb, %s::jsonb, TRUE)
                         RETURNING id, order_index;
-                    """, (
-                        test_id_str,
-                        q['text'],
-                        q.get("question_type", "single_choice"),
-                        int(q['order']),
-                        json.dumps(opt_data, ensure_ascii=False),
-                        json.dumps(media_content, ensure_ascii=False),
-                    ))
-                    
+                    """,
+                        (
+                            test_id_str,
+                            q["text"],
+                            q.get("question_type", "single_choice"),
+                            int(q["order"]),
+                            json.dumps(opt_data, ensure_ascii=False),
+                            json.dumps(media_content, ensure_ascii=False),
+                        ),
+                    )
+
                     row = cursor.fetchone()
                     if row:
                         order_to_qid[int(row[1])] = str(row[0])
@@ -939,77 +1022,99 @@ class DatabaseService:
                                 ),
                             )
 
-                # 3. Store active scales and their mappings.
+                # 2. Шкалы и привязка вопросов к ним
                 for idx, s in enumerate(scales):
-                    # Извлекаем номер шкалы из названия (например: '1. Демонстративность' -> 1)
-                    scale_num_match = re.search(r'^\s*(\d+)', str(s['name']))
-                    scale_num = int(scale_num_match.group(1)) if scale_num_match else (idx + 1)
+                    # Номер шкалы из названия: '1. Демонстративность' -> 1
+                    scale_num_match = re.search(r"^\s*(\d+)", str(s["name"]))
+                    scale_num = (
+                        int(scale_num_match.group(1)) if scale_num_match else (idx + 1)
+                    )
                     scale_code = f"SCALE_{scale_num}"
 
-                    raw_mapping = str(s.get('mapping', '')).replace(' ', '')
+                    raw_mapping = str(s.get("mapping", "")).replace(" ", "")
+                    q_indices = [
+                        int(x.strip())
+                        for x in raw_mapping.split(",")
+                        if x.strip().isdigit()
+                    ]
 
-                    cursor.execute("""
-                        INSERT INTO test_scales 
+                    # ✅ Защита ключа: шкала без вопросов или с несуществующими номерами
+                    # отменяет всё сохранение (транзакция откатывается).
+                    if not q_indices:
+                        raise ValueError(
+                            f"Шкала «{s['name']}»: не указаны номера вопросов. "
+                            "Сохранение отменено, чтобы не потерять ключ методики."
+                        )
+                    missing = [n for n in q_indices if n not in order_to_qid]
+                    if missing:
+                        raise ValueError(
+                            f"Шкала «{s['name']}»: нет вопросов с номерами {missing}."
+                        )
+
+                    cursor.execute(
+                        """
+                        INSERT INTO test_scales
                         (
                             test_id, scale_name, scale_code, min_score, max_score,
                             interpretation, coefficient, is_active
                         )
                         VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE)
                         RETURNING id;
-                    """, (
-                        test_id_str,
-                        s['name'], 
-                        scale_code,
-                        int(s.get('min', 0)), 
-                        float(s['max']), 
-                        s['interpretation'], 
-                        float(s.get('coef', 1.0))
-                    ))
-                    
+                    """,
+                        (
+                            test_id_str,
+                            s["name"],
+                            scale_code,
+                            int(s.get("min", 0)),
+                            float(s["max"]),
+                            s["interpretation"],
+                            float(s.get("coef", 1.0)),
+                        ),
+                    )
                     scale_id = str(cursor.fetchone()[0])
 
-                    # 4. Map question numbers to this active scale.
-                    q_indices = [int(x.strip()) for x in raw_mapping.split(',') if x.strip().isdigit()]
                     for q_order in q_indices:
-                        qid = order_to_qid.get(q_order)
-                        if qid:
-                            cursor.execute("""
-                                INSERT INTO question_scale_mapping (question_id, scale_id, weight)
-                                VALUES (%s, %s, 1.0)
-                                ON CONFLICT (question_id, scale_id) DO NOTHING;
-                            """, (qid, scale_id))
+                        cursor.execute(
+                            """
+                            INSERT INTO question_scale_mapping (question_id, scale_id, weight)
+                            VALUES (%s, %s, 1.0)
+                            ON CONFLICT (question_id, scale_id) DO NOTHING;
+                        """,
+                            (order_to_qid[q_order], scale_id),
+                        )
 
                 connection.commit()
-                logger.info(f"💎 УСПЕХ: Структура теста {test_id} и question_scale_mapping успешно сохранены в БД.")
+                logger.info(
+                    f"💎 УСПЕХ: Структура теста {test_id} и question_scale_mapping успешно сохранены в БД."
+                )
 
             except Exception as e:
                 connection.rollback()
-                logger.error(f"❌ КРИТИЧЕСКИЙ СБОЙ: Ошибка при сохранении структуры теста: {e}")
+                logger.error(
+                    f"❌ КРИТИЧЕСКИЙ СБОЙ: Ошибка при сохранении структуры теста: {e}"
+                )
                 raise e
             finally:
                 cursor.close()
-                
-                
-                
-                
+
     def save_complex_test(self, header: Dict, content: List, assessment: List):
         """
         Усовершенствованная сборка теста.
         Принимает header, в котором теперь лежат и 'desc', и 'instructions'.
         """
         # Извлекаем данные из словаря header
-        code = header.get('code', 'PDF_IMPORT')
-        name = header.get('name', 'Новый тест')
-        desc = header.get('desc', '')
+        code = header.get("code", "PDF_IMPORT")
+        name = header.get("name", "Новый тест")
+        desc = header.get("desc", "")
         # ✅ Получаем инструкцию, если её нет — ставим пустую строку
-        instr = header.get('instructions', '')
+        instr = header.get("instructions", "")
 
         # Создаем «шапку» теста (убедись, что твой add_test принимает 4 аргумента!)
         generated_id = self.add_test(code, name, desc, instr)
-        
+
         # Сохраняем вопросы и шкалы
         self.save_test_structure(generated_id, content, assessment)
-        
+
         logger.info(f"✅ Тест '{name}' со всеми описаниями успешно сохранен в БД.")
 
     # ==========================================================================
@@ -1038,6 +1143,20 @@ class DatabaseService:
                 raise ValueError(f"Методика {t_id} не найдена или неактивна.")
             return str(row[0])
 
+    def get_test_session_student_id(self, session_id: str) -> Optional[str]:
+        """Return the owning student ID for a test session, if it exists."""
+        with self.get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT student_id
+                FROM psychology.test_sessions
+                WHERE id = %s::uuid;
+                """,
+                (str(session_id),),
+            )
+            row = cur.fetchone()
+            return str(row[0]) if row and row[0] is not None else None
+
     def get_full_test_questions(self, t_id: str) -> List[Dict[str, Any]]:
         sql = """
             SELECT id, question_text, options, order_index, question_type, media_content
@@ -1063,10 +1182,6 @@ class DatabaseService:
                 }
                 for row in rows
             ]
-
-
-
-        
 
     def save_answer(
         self,
@@ -1160,19 +1275,13 @@ class DatabaseService:
                 f"№={q_num}, choice={choice_text}, score={point_val}"
             )
 
-
-
-
-
-
-
-
-
-    def finalize_test_and_calculate(self, session_id: str, test_id: Optional[str] = None) -> None:
+    def finalize_test_and_calculate(
+        self, session_id: str, test_id: Optional[str] = None
+    ) -> None:
         """
-        🚀 Высокоточный расчет итогов тестирования (Senior V13.5).
-        Гарантирует наличие связей в question_scale_mapping, вызывает процедуру
-        calculate_osr_session и завершает сессию.
+        🚀 Расчет итогов тестирования.
+        Проверяет наличие ключа методики, вызывает calculate_osr_session и завершает сессию.
+        При любой ошибке транзакция откатывается: нулевой результат в базу не попадает.
         """
         sess_uuid = str(session_id)
         logger.info(f"Запуск расчета результатов для сессии: {sess_uuid}")
@@ -1212,72 +1321,43 @@ class DatabaseService:
                 )
                 return
 
-            # 0. 🛡️ АВТО-СИНХРОНИЗАЦИЯ: проверяем наличие связей в question_scale_mapping
-            cur.execute("""
-                SELECT COUNT(*) 
+            # 0. Без ключа методики процедура посчитает все шкалы как 0
+            cur.execute(
+                """
+                SELECT COUNT(*)
                 FROM psychology.question_scale_mapping qsm
                 JOIN psychology.test_scales s ON s.id = qsm.scale_id
-                WHERE s.test_id = %s::uuid AND s.is_active = TRUE;
-            """, (actual_test_id,))
-            mapping_count = cur.fetchone()[0]
-
-            if mapping_count == 0:
-                logger.warning(f"question_scale_mapping пуст для сессии {sess_uuid}. Выполняем авто-привязку...")
-                cur.execute("SELECT test_id FROM psychology.test_sessions WHERE id = %s::uuid;", (sess_uuid,))
-                t_row = cur.fetchone()
-                if t_row:
-                    c_tid = str(t_row[0])
-                    cur.execute(
-                        "SELECT id, order_index FROM psychology.test_questions "
-                        "WHERE test_id = %s::uuid AND is_active = TRUE;",
-                        (c_tid,),
-                    )
-                    q_dict = {row[1]: str(row[0]) for row in cur.fetchall()}
-
-                    cur.execute(
-                        "SELECT id, scale_code, scale_name FROM psychology.test_scales "
-                        "WHERE test_id = %s::uuid AND is_active = TRUE;",
-                        (c_tid,),
-                    )
-                    for s_id, sc_code, sc_name in cur.fetchall():
-                        # Парсим номера вопросов из scale_code
-                        q_nums = [int(x.strip()) for x in str(sc_code).split(',') if x.strip().isdigit()]
-                        
-                        # Обновляем scale_code на SCALE_N
-                        s_match = re.search(r'^\s*(\d+)', str(sc_name))
-                        if s_match:
-                            new_code = f"SCALE_{s_match.group(1)}"
-                            cur.execute("UPDATE psychology.test_scales SET scale_code = %s WHERE id = %s;", (new_code, s_id))
-
-                        for q_num in q_nums:
-                            qid = q_dict.get(q_num)
-                            if qid:
-                                cur.execute("""
-                                    INSERT INTO psychology.question_scale_mapping (question_id, scale_id, weight)
-                                    VALUES (%s, %s, 1.0)
-                                    ON CONFLICT (question_id, scale_id) DO NOTHING;
-                                """, (qid, str(s_id)))
-                    logger.info("✅ Авто-привязка question_scale_mapping успешно завершена.")
-
-            # 1. Запуск серверной процедуры скоринга ОСР Разуваевой
-            try:
-                cur.execute(
-                    "SELECT psychology.calculate_osr_session(%s::uuid);",
-                    (sess_uuid,)
+                JOIN psychology.test_questions q ON q.id = qsm.question_id
+                WHERE s.test_id = %s::uuid AND s.is_active = TRUE AND q.is_active = TRUE;
+            """,
+                (actual_test_id,),
+            )
+            if cur.fetchone()[0] == 0:
+                raise ValueError(
+                    "У методики не настроена привязка вопросов к шкалам. "
+                    "Результат не рассчитан, обратитесь к администратору."
                 )
-                logger.info(f"✅ Процедура calculate_osr_session успешно выполнена для сессии {sess_uuid}")
-            except Exception as sp_err:
-                logger.warning(f"⚠️ Ошибка вызова хранимой процедуры: {sp_err}")
+
+            # 1. Расчёт по серверной процедуре ОСР
+            cur.execute(
+                "SELECT psychology.calculate_osr_session(%s::uuid);", (sess_uuid,)
+            )
+            logger.info(f"✅ calculate_osr_session выполнена для сессии {sess_uuid}")
 
             # 2. Финализируем сессию тестирования
-            cur.execute("""
-                UPDATE psychology.test_sessions 
-                SET status = 'completed'::psychology.session_status, 
-                    end_time = CURRENT_TIMESTAMP 
+            cur.execute(
+                """
+                UPDATE psychology.test_sessions
+                SET status = 'completed'::psychology.session_status,
+                    end_time = CURRENT_TIMESTAMP
                 WHERE id = %s::uuid;
-            """, (sess_uuid,))
+            """,
+                (sess_uuid,),
+            )
 
-            logger.info(f"🏁 Сессия {sess_uuid} финализирована со статусом 'completed'.")
+            logger.info(
+                f"🏁 Сессия {sess_uuid} финализирована со статусом 'completed'."
+            )
 
     @staticmethod
     def _calculate_choice_results(cursor, session_id: str, test_id: str) -> None:
@@ -1319,9 +1399,7 @@ class DatabaseService:
             score_value = float(score)
             overall_score += score_value
             interpretation_text = str(interpretation or "").strip()
-            scale_summary = (
-                f"{scale_name}: {score_value:g} из {float(max_score):g}."
-            )
+            scale_summary = f"{scale_name}: {score_value:g} из {float(max_score):g}."
             if interpretation_text:
                 scale_summary = f"{scale_summary} {interpretation_text}"
             summary_lines.append(scale_summary)
@@ -1376,77 +1454,84 @@ class DatabaseService:
                 "\n".join(summary_lines),
             ),
         )
-            
 
-    def log_report_generation(self, session_id: str, file_path: str, generated_by: str, binary_data: bytes):
-            """
-            📝 Фиксация создания отчета в системном журнале test_reports.
-            Позволяет хранить копию файла прямо в БД (поле file_data).
-            """
-            # Сначала найдем result_id для этой сессии
-            get_res_query = "SELECT id FROM psychology.test_results WHERE session_id = %s;"
-            
-            insert_report_query = """
+    def log_report_generation(
+        self, session_id: str, file_path: str, generated_by: str, binary_data: bytes
+    ):
+        """
+        📝 Фиксация создания отчета в системном журнале test_reports.
+        Позволяет хранить копию файла прямо в БД (поле file_data).
+        """
+        # Сначала найдем result_id для этой сессии
+        get_res_query = "SELECT id FROM psychology.test_results WHERE session_id = %s;"
+
+        insert_report_query = """
                 INSERT INTO psychology.test_reports 
                 (session_id, result_id, file_path, file_data, generated_by, report_type, report_format)
                 VALUES (%s, %s, %s, %s, %s, 'full', 'docx');
             """
-            
-            with self.get_cursor() as cursor:
-                cursor.execute(get_res_query, (session_id,))
-                res_id_row = cursor.fetchone()
-                result_id = res_id_row[0] if res_id_row else None
-                
-                # Запись самого лога и файла
-                cursor.execute(insert_report_query, (
-                    session_id, 
-                    result_id, 
-                    file_path, 
-                    binary_data, # Тут сохраняется копия документа
-                    generated_by
-                ))
-                logger.info(f"📊 Отчет для сессии {session_id} заархивирован в таблицу test_reports")
-    
-   
-   
+
+        with self.get_cursor() as cursor:
+            cursor.execute(get_res_query, (session_id,))
+            res_id_row = cursor.fetchone()
+            result_id = res_id_row[0] if res_id_row else None
+
+            # Запись самого лога и файла
+            cursor.execute(
+                insert_report_query,
+                (
+                    session_id,
+                    result_id,
+                    file_path,
+                    binary_data,  # Тут сохраняется копия документа
+                    generated_by,
+                ),
+            )
+            logger.info(
+                f"📊 Отчет для сессии {session_id} заархивирован в таблицу test_reports"
+            )
+
     # ==========================================================================
     # 🏆 [БЛОК 6] : СЛУЖБА ОТЧЕТОВ И ЖУРНАЛИРОВАНИЯ
     # ==========================================================================
 
-    def archive_report_to_db(self, session_id: str, file_path: str, file_bytes: bytes, user_id: str):
+    def archive_report_to_db(
+        self, session_id: str, file_path: str, file_bytes: bytes, user_id: str
+    ):
         """
         📥 Профессиональная архивация отчета в базу данных.
         Сохраняет метаданные и само тело файла (.docx) в колонку BYTEA.
         """
         # 1. Автоматически находим связанный result_id для этой сессии
         query_result = "SELECT id FROM psychology.test_results WHERE session_id = %s;"
-        
+
         insert_report_sql = """
             INSERT INTO psychology.test_reports 
             (session_id, result_id, file_path, file_data, generated_by, report_format, is_downloaded)
             VALUES (%s, %s, %s, %s, %s, 'docx', TRUE);
         """
-        
+
         with self.get_cursor() as cursor:
             cursor.execute(query_result, (session_id,))
             res_row = cursor.fetchone()
             result_id = res_row[0] if res_row else None
-            
+
             # 2. Записываем запись об отчете и сам бинарный файл
-            cursor.execute(insert_report_sql, (
-                session_id, 
-                result_id, 
-                file_path, 
-                file_bytes,  # Сюда идет содержимое файла
-                user_id
-            ))
+            cursor.execute(
+                insert_report_sql,
+                (
+                    session_id,
+                    result_id,
+                    file_path,
+                    file_bytes,  # Сюда идет содержимое файла
+                    user_id,
+                ),
+            )
             logger.info(f"💾 Файл отчета заархивирован в БД для сессии: {session_id}")
 
-
-     # ============================================================
+    # ============================================================
     # 🏆 ОТЧЕТНОСТЬ И РЕЗУЛЬТАТЫ
     # ============================================================
-
 
     def get_test_results(self) -> List[Tuple]:
         """
@@ -1502,7 +1587,7 @@ class DatabaseService:
 
             if not student_info:
                 logger.error(f"❌ ОШИБКА ОТЧЕТА: Сессия с ID {sess_str} не найдена.")
-                return {'student': None, 'answers': [], 'summary': None, 'scales': []}
+                return {"student": None, "answers": [], "summary": None, "scales": []}
 
             # 2. Список ответов (Связка Вопрос <-> Выбор/Балл)
             # Берем текст выбора из JSONB или начисленный балл
@@ -1513,7 +1598,8 @@ class DatabaseService:
                     a.answer_data,
                     a.earned_score,
                     q.options,
-                    q.media_content
+                    q.media_content,
+                    a.question_number                    -- [6] номер вопроса
                 FROM psychology.answers a
                 LEFT JOIN psychology.test_questions q ON a.question_id = q.id
                 WHERE a.session_id = %s::uuid 
@@ -1545,7 +1631,11 @@ class DatabaseService:
                 options_data = row[4] or {}
                 if isinstance(options_data, str):
                     options_data = json.loads(options_data)
-                options = options_data.get("options", []) if isinstance(options_data, dict) else []
+                options = (
+                    options_data.get("options", [])
+                    if isinstance(options_data, dict)
+                    else []
+                )
                 selected_media_keys = {
                     str(option.get("media_key"))
                     for option in options
@@ -1567,8 +1657,10 @@ class DatabaseService:
                 ]
                 answers_list.append(
                     {
+                        "number": int(row[6]) if row[6] is not None else None,
                         "question": str(row[1]),
                         "choice": str(choice),
+                        "value": answer_data.get("value"),
                         "score": row[3],
                         "images": relevant_media,
                     }
@@ -1584,16 +1676,28 @@ class DatabaseService:
             result_summary = cursor.fetchone()
 
             # 4. Детальный профиль по шкалам (для гистограммы в Word)
+            # Номера утверждений берутся у той версии шкалы, по которой
+            # считался результат (архивные версии сохраняют свои привязки).
             query_scales = """
-                SELECT 
-                    ts.scale_name,    -- [0] Название шкалы
-                    sr.raw_score,     -- [1] Балл ученика
-                    sr.risk_level,    -- [2] Категория риска
-                    ts.max_score      -- [3] Максимальный порог
+                SELECT
+                    ts.scale_name,      -- [0] Название шкалы
+                    sr.raw_score,       -- [1] Балл ученика
+                    sr.risk_level,      -- [2] Категория риска
+                    ts.max_score,       -- [3] Максимальный порог
+                    ts.scale_code,      -- [4] SCALE_N
+                    ts.coefficient,     -- [5] Коэффициент
+                    ts.interpretation,  -- [6] Описание шкалы из методики
+                    COALESCE((
+                        SELECT string_agg(q.order_index::text, ',' ORDER BY q.order_index)
+                        FROM psychology.question_scale_mapping m
+                        JOIN psychology.test_questions q ON q.id = m.question_id
+                        WHERE m.scale_id = ts.id
+                    ), '')              -- [7] Номера утверждений шкалы
                 FROM psychology.scale_results sr
                 JOIN psychology.test_scales ts ON sr.scale_id = ts.id
                 WHERE sr.session_id = %s::uuid
-                ORDER BY ts.scale_code ASC, ts.scale_name ASC;
+                ORDER BY NULLIF(substring(ts.scale_code from '[0-9]+'), '')::int NULLS LAST,
+                         ts.scale_name ASC;
             """
             cursor.execute(query_scales, (sess_str,))
             scales_data = cursor.fetchall()
@@ -1604,13 +1708,16 @@ class DatabaseService:
 
             # Возвращаем полный пакет данных для ReportService
             return {
-                'student': student_info,
-                'answers': answers_list,
-                'summary': result_summary if result_summary else (0, "Норма", "Результат в норме"),
-                'scales': scales_data,
-                'test_mode': str(test_config.get("test_mode", "yes_no"))
+                "student": student_info,
+                "answers": answers_list,
+                "summary": (
+                    result_summary
+                    if result_summary
+                    else (0, "Норма", "Результат в норме")
+                ),
+                "scales": scales_data,
+                "test_mode": str(test_config.get("test_mode", "yes_no")),
             }
-            
 
     def get_student_results(self, stud_uuid: str) -> List[Tuple]:
         """История тестирования в кабинет ученика (с детализацией Summary)."""
@@ -1646,15 +1753,15 @@ class DatabaseService:
             cur.execute(sql)
             return cur.fetchall()
 
-
         # ==========================================================================
+
     # 🧠 [БЛОК AI] : ИНТЕЛЛЕКТУАЛЬНЫЙ ПАРСЕР PDF (Senior Edition V12.0)
     # ==========================================================================
 
     def parse_pdf_methodology(self, file_path_src: str) -> Dict[str, Any]:
         """
         🚀 ВЫСОКОТЕХНОЛОГИЧНЫЙ AI ПАРСЕР PDF (Senior Edition V12.0).
-        
+
         Особенности и защита:
         - Изолирует зону утверждений строго после '1. ' (исключает ложные номера из истории/описания).
         - Ищет номера только в начале строк, защищая от совпадений вида 'больницы № 20'.
@@ -1662,60 +1769,80 @@ class DatabaseService:
         - Поддерживает дробные коэффициенты с запятыми ('1,2' -> 1.2) и max_score.
         """
         test_structure = {
-            "name": "", 
-            "description": "", 
-            "instructions": "", 
-            "questions": [], 
-            "scales": []
+            "name": "",
+            "description": "",
+            "instructions": "",
+            "questions": [],
+            "scales": [],
         }
-        
+
         try:
             with pdfplumber.open(file_path_src) as source_pdf:
                 # 1. Извлечение полного сырого текста документа
-                full_raw_text = "\n".join([page.extract_text() or "" for page in source_pdf.pages])
+                full_raw_text = "\n".join(
+                    [page.extract_text() or "" for page in source_pdf.pages]
+                )
 
                 # 2. Сепарация контента: отсекаем блок ключей, шкал и бланков
                 sections = re.split(
-                    r'(Ключ|Регистрационный бланк|Интерпретация|Справочные данные|Ответы на|Обработка)', 
-                    full_raw_text, 
-                    maxsplit=1, 
-                    flags=re.IGNORECASE
+                    r"(Ключ|Регистрационный бланк|Интерпретация|Справочные данные|Ответы на|Обработка)",
+                    full_raw_text,
+                    maxsplit=1,
+                    flags=re.IGNORECASE,
                 )
                 question_text_zone = sections[0]
 
                 # 3. 🛡️ СТРОГОЕ ЗОНИРОВАНИЕ: находим начало реального первого вопроса
-                start_of_questions = re.search(r'(?:^|\n)\s*1\.\s+', question_text_zone)
-                
+                start_of_questions = re.search(r"(?:^|\n)\s*1\.\s+", question_text_zone)
+
                 if start_of_questions:
                     # Метаданные (название, описание, инструкция) строго ДО вопроса №1
-                    metadata_chunk = question_text_zone[:start_of_questions.start()].strip()
+                    metadata_chunk = question_text_zone[
+                        : start_of_questions.start()
+                    ].strip()
                     # Вопросы строго НАЧИНАЯ с вопроса №1
-                    only_questions_zone = question_text_zone[start_of_questions.start():]
+                    only_questions_zone = question_text_zone[
+                        start_of_questions.start() :
+                    ]
                 else:
                     metadata_chunk = question_text_zone
                     only_questions_zone = question_text_zone
 
                 # Обработка метаданных теста
-                clean_lines = [line.strip() for line in metadata_chunk.split('\n') if len(line.strip()) > 3]
+                clean_lines = [
+                    line.strip()
+                    for line in metadata_chunk.split("\n")
+                    if len(line.strip()) > 3
+                ]
                 if clean_lines:
-                    test_structure['name'] = clean_lines[0]
+                    test_structure["name"] = clean_lines[0]
                     desc_body = "\n".join(clean_lines[1:])
-                    
+
                     if "инструкция" in desc_body.lower():
-                        meta_parts = re.split(r'(Инструкция[:\s]+)', desc_body, flags=re.IGNORECASE)
-                        test_structure['description'] = meta_parts[0].strip().replace('\n', ' ')
-                        test_structure['instructions'] = "".join(meta_parts[1:]).strip().replace('\n', ' ')
+                        meta_parts = re.split(
+                            r"(Инструкция[:\s]+)", desc_body, flags=re.IGNORECASE
+                        )
+                        test_structure["description"] = (
+                            meta_parts[0].strip().replace("\n", " ")
+                        )
+                        test_structure["instructions"] = (
+                            "".join(meta_parts[1:]).strip().replace("\n", " ")
+                        )
                     else:
-                        test_structure['description'] = desc_body.replace('\n', ' ')
-                        test_structure['instructions'] = "Инструкция прилагается к списку утверждений."
+                        test_structure["description"] = desc_body.replace("\n", " ")
+                        test_structure["instructions"] = (
+                            "Инструкция прилагается к списку утверждений."
+                        )
                 else:
-                    test_structure['name'] = "Психологическая методика"
-                    test_structure['description'] = "Диагностический опросник"
-                    test_structure['instructions'] = "Внимательно прочитайте утверждения и ответьте на них."
+                    test_structure["name"] = "Психологическая методика"
+                    test_structure["description"] = "Диагностический опросник"
+                    test_structure["instructions"] = (
+                        "Внимательно прочитайте утверждения и ответьте на них."
+                    )
 
                 # 4. 📋 ПАРСИНГ ВОПРОСОВ (Только из зоны утверждений и только с начала строки)
                 # Шаблон: (начало строки) -> (цифры) -> точка -> текст до следующего номера в начале строки
-                q_pattern = r'(?:^|\n)\s*(\d+)\.\s*([^\n].*?)(?=(?:\n\s*\d+\.|\Z))'
+                q_pattern = r"(?:^|\n)\s*(\d+)\.\s*([^\n].*?)(?=(?:\n\s*\d+\.|\Z))"
                 q_matches = re.findall(q_pattern, only_questions_zone, re.DOTALL)
 
                 seen_orders = set()
@@ -1726,28 +1853,39 @@ class DatabaseService:
                     # Жесткая защита от повторов и пустых записей
                     if q_num not in seen_orders and clean_text:
                         seen_orders.add(q_num)
-                        test_structure['questions'].append({
-                            'order': q_num,
-                            'text': clean_text,
-                            'options': json.dumps({"Да": 1, "Нет": 0}, ensure_ascii=False)
-                        })
+                        test_structure["questions"].append(
+                            {
+                                "order": q_num,
+                                "text": clean_text,
+                                "options": json.dumps(
+                                    {"Да": 1, "Нет": 0}, ensure_ascii=False
+                                ),
+                            }
+                        )
 
                 # Гарантируем сортировку по возрастанию номеров (1..N)
-                test_structure['questions'].sort(key=lambda x: x['order'])
+                test_structure["questions"].sort(key=lambda x: x["order"])
 
                 # 5. 📊 ПАРСИНГ ШКАЛ, КОЭФФИЦИЕНТОВ И MAX-БАЛЛОВ ИЗ ТАБЛИЦ
                 seen_scales = set()
                 for page in source_pdf.pages:
-                    for current_table in (page.extract_tables() or []):
+                    for current_table in page.extract_tables() or []:
                         if not current_table or not current_table[0]:
                             continue
 
-                        header_str = " ".join([str(cell).lower() for cell in current_table[0] if cell])
-                        if any(keyword in header_str for keyword in ["шкала", "сужден", "номер", "коэф"]):
+                        header_str = " ".join(
+                            [str(cell).lower() for cell in current_table[0] if cell]
+                        )
+                        if any(
+                            keyword in header_str
+                            for keyword in ["шкала", "сужден", "номер", "коэф"]
+                        ):
                             for data_row in current_table[1:]:
                                 if len(data_row) >= 2 and data_row[0] and data_row[1]:
-                                    scale_name = str(data_row[0]).strip().replace('\n', ' ')
-                                    
+                                    scale_name = (
+                                        str(data_row[0]).strip().replace("\n", " ")
+                                    )
+
                                     # Защита от дублей шкал при многостраничных таблицах
                                     if not scale_name or scale_name in seen_scales:
                                         continue
@@ -1758,8 +1896,15 @@ class DatabaseService:
                                     coef_val = 1.0
                                     if len(data_row) > 2 and data_row[2]:
                                         try:
-                                            raw_coef = str(data_row[2]).replace(',', '.').replace('\n', '').strip()
-                                            coef_val = float(re.sub(r'[^\d.]', '', raw_coef))
+                                            raw_coef = (
+                                                str(data_row[2])
+                                                .replace(",", ".")
+                                                .replace("\n", "")
+                                                .strip()
+                                            )
+                                            coef_val = float(
+                                                re.sub(r"[^\d.]", "", raw_coef)
+                                            )
                                         except (ValueError, TypeError):
                                             coef_val = 1.0
 
@@ -1767,19 +1912,30 @@ class DatabaseService:
                                     max_v = 10.0
                                     if len(data_row) > 3 and data_row[3]:
                                         try:
-                                            raw_max = str(data_row[3]).replace(',', '.').replace('\n', '').strip()
-                                            max_v = float(re.sub(r'[^\d.]', '', raw_max))
+                                            raw_max = (
+                                                str(data_row[3])
+                                                .replace(",", ".")
+                                                .replace("\n", "")
+                                                .strip()
+                                            )
+                                            max_v = float(
+                                                re.sub(r"[^\d.]", "", raw_max)
+                                            )
                                         except (ValueError, TypeError):
                                             max_v = 10.0
 
-                                    test_structure['scales'].append({
-                                        'name': scale_name,
-                                        'mapping': str(data_row[1]).replace(' ', '').replace('\n', ''),
-                                        'coef': coef_val,
-                                        'min': 0,
-                                        'max': max_v,
-                                        'interpretation': f"Результат анализа по шкале: '{scale_name}'"
-                                    })
+                                    test_structure["scales"].append(
+                                        {
+                                            "name": scale_name,
+                                            "mapping": str(data_row[1])
+                                            .replace(" ", "")
+                                            .replace("\n", ""),
+                                            "coef": coef_val,
+                                            "min": 0,
+                                            "max": max_v,
+                                            "interpretation": f"Результат анализа по шкале: '{scale_name}'",
+                                        }
+                                    )
 
             logger.info(
                 f"AI Success: Методика распознана успешно. "
@@ -1799,7 +1955,9 @@ class DatabaseService:
     def get_all_users(self) -> List[Tuple]:
         """Возвращает справочник всех системных пользователей школы."""
         with self.get_cursor() as cursor:
-            cursor.execute("SELECT id, login, role, is_active FROM psychology.users ORDER BY role ASC, login ASC;")
+            cursor.execute(
+                "SELECT id, login, role, is_active FROM psychology.users ORDER BY role ASC, login ASC;"
+            )
             return cursor.fetchall()
 
     def toggle_user_active(self, user_id: str, new_status: bool) -> None:
@@ -1815,7 +1973,9 @@ class DatabaseService:
         """
         with self.get_cursor() as cur:
             cur.execute(sql, (bool(new_status), str(user_id)))
-            logger.info(f"Пользователь ID={user_id}: статус изменен на is_active={new_status}")
+            logger.info(
+                f"Пользователь ID={user_id}: статус изменен на is_active={new_status}"
+            )
 
     def delete_user(self, user_id: str) -> None:
         """
@@ -1827,13 +1987,13 @@ class DatabaseService:
             cur.execute(sql, (str(user_id),))
             logger.warning(f"Пользователь ID={user_id} удален из базы данных.")
 
-
-
     # ============================================================
     # 🔔 БЛОК: УВЕДОМЛЕНИЯ И ОПОВЕЩЕНИЯ
     # ============================================================
 
-    def get_user_notifications(self, user_id: str, only_unread: bool = False) -> List[Tuple]:
+    def get_user_notifications(
+        self, user_id: str, only_unread: bool = False
+    ) -> List[Tuple]:
         """Получает список всех сообщений для конкретного пользователя."""
         query = """
             SELECT id, title, message, notification_type, is_read, created_at 
@@ -1842,14 +2002,16 @@ class DatabaseService:
         """
         if only_unread:
             query += " AND is_read = FALSE"
-        
+
         query += " ORDER BY created_at DESC;"
-        
+
         with self.get_cursor() as cursor:
             cursor.execute(query, (user_id,))
             return cursor.fetchall()
 
-    def create_notification(self, user_id: str, title: str, message: str, n_type: str = 'info'):
+    def create_notification(
+        self, user_id: str, title: str, message: str, n_type: str = "info"
+    ):
         """Создает системное оповещение."""
         query = """
             INSERT INTO psychology.notifications (user_id, title, message, notification_type)
@@ -1867,15 +2029,17 @@ class DatabaseService:
     def delete_notification(self, n_id: str):
         """Удаляет сообщение."""
         with self.get_cursor() as cursor:
-            cursor.execute("DELETE FROM psychology.notifications WHERE id = %s", (n_id,))
-
-
+            cursor.execute(
+                "DELETE FROM psychology.notifications WHERE id = %s", (n_id,)
+            )
 
     # ==========================================================================
     # 💾 [БЛОК: ОБСЛУЖИВАНИЕ, БЭКАПЫ И АУДИТ 152-ФЗ]
     # ==========================================================================
 
-    def create_database_backup(self, backup_filepath: str, user_id: Optional[str] = None) -> Tuple[bool, str]:
+    def create_database_backup(
+        self, backup_filepath: str, user_id: Optional[str] = None
+    ) -> Tuple[bool, str]:
         """
         🚀 Создание полной резервной копии базы данных (.sql).
         Двухуровневая стратегия:
@@ -1906,20 +2070,35 @@ class DatabaseService:
 
         cmd = [
             pg_dump_bin,
-            "-h", str(settings.DB_HOST),
-            "-p", str(settings.DB_PORT),
-            "-U", str(settings.DB_USER),
-            "-d", str(settings.DB_NAME),
-            "-n", str(settings.DB_SCHEMA),
-            "-F", "p",
-            "-f", backup_filepath
+            "-h",
+            str(settings.DB_HOST),
+            "-p",
+            str(settings.DB_PORT),
+            "-U",
+            str(settings.DB_USER),
+            "-d",
+            str(settings.DB_NAME),
+            "-n",
+            str(settings.DB_SCHEMA),
+            "-F",
+            "p",
+            "-f",
+            backup_filepath,
         ]
 
         try:
-            res = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=60)
-            if res.returncode == 0 and os.path.exists(backup_filepath) and os.path.getsize(backup_filepath) > 0:
+            res = subprocess.run(
+                cmd, env=env, capture_output=True, text=True, timeout=60
+            )
+            if (
+                res.returncode == 0
+                and os.path.exists(backup_filepath)
+                and os.path.getsize(backup_filepath) > 0
+            ):
                 success = True
-                logger.info(f"Нативный бэкап через pg_dump успешно создан: {backup_filepath}")
+                logger.info(
+                    f"Нативный бэкап через pg_dump успешно создан: {backup_filepath}"
+                )
             else:
                 err_msg = res.stderr or "pg_dump завершился с ошибкой"
         except Exception as e:
@@ -1928,20 +2107,35 @@ class DatabaseService:
         # --- Стратегия 2: Автономный генератор SQL-дампа (Fallback) ---
         if not success:
             try:
-                logger.warning(f"pg_dump недоступен ({err_msg}). Запуск встроенного генератора дампа...")
+                logger.warning(
+                    f"pg_dump недоступен ({err_msg}). Запуск встроенного генератора дампа..."
+                )
                 tables = [
-                    "academic_years", "schools", "classes", "students",
-                    "users", "data_processing_consent", "psychological_tests",
-                    "test_questions", "test_scales", "question_scale_mapping",
-                    "test_sessions", "answers", "test_results", "scale_results",
-                    "test_reports", "notifications"
+                    "academic_years",
+                    "schools",
+                    "classes",
+                    "students",
+                    "users",
+                    "data_processing_consent",
+                    "psychological_tests",
+                    "test_questions",
+                    "test_scales",
+                    "question_scale_mapping",
+                    "test_sessions",
+                    "answers",
+                    "test_results",
+                    "scale_results",
+                    "test_reports",
+                    "notifications",
                 ]
 
                 with self.get_cursor() as cur:
                     with open(backup_filepath, "w", encoding="utf-8") as f:
                         f.write(f"-- РЕЗЕРВНАЯ КОПИЯ: {settings.DB_NAME}\n")
                         f.write(f"-- Схема: {settings.DB_SCHEMA}\n")
-                        f.write(f"-- Дата формирования: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                        f.write(
+                            f"-- Дата формирования: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                        )
                         f.write("SET search_path TO psychology, public;\n\n")
 
                         for tbl in tables:
@@ -1961,44 +2155,59 @@ class DatabaseService:
                                     elif isinstance(v, bool):
                                         vals.append("TRUE" if v else "FALSE")
                                     elif isinstance(v, (bytes, memoryview)):
-                                        vals.append(f"decode('{bytes(v).hex()}', 'hex')")
+                                        vals.append(
+                                            f"decode('{bytes(v).hex()}', 'hex')"
+                                        )
                                     elif isinstance(v, dict):
-                                        esc_json = json.dumps(v, ensure_ascii=False).replace("'", "''")
+                                        esc_json = json.dumps(
+                                            v, ensure_ascii=False
+                                        ).replace("'", "''")
                                         vals.append(f"'{esc_json}'::jsonb")
                                     else:
                                         esc_text = str(v).replace("'", "''")
                                         vals.append(f"'{esc_text}'")
                                 cols_sql = ", ".join(colnames)
                                 vals_sql = ", ".join(vals)
-                                f.write(f"INSERT INTO psychology.{tbl} ({cols_sql}) VALUES ({vals_sql}) ON CONFLICT DO NOTHING;\n")
+                                f.write(
+                                    f"INSERT INTO psychology.{tbl} ({cols_sql}) VALUES ({vals_sql}) ON CONFLICT DO NOTHING;\n"
+                                )
                             f.write("\n")
                 success = True
                 err_msg = ""
-                logger.info(f"Встроенный SQL-дамп успешно сформирован: {backup_filepath}")
+                logger.info(
+                    f"Встроенный SQL-дамп успешно сформирован: {backup_filepath}"
+                )
             except Exception as py_err:
                 err_msg = f"Ошибка резервного копирования: {py_err}"
                 logger.error(err_msg)
 
         # Фиксация в таблице backup_logs
-        file_size = os.path.getsize(backup_filepath) if (os.path.exists(backup_filepath) and success) else 0
+        file_size = (
+            os.path.getsize(backup_filepath)
+            if (os.path.exists(backup_filepath) and success)
+            else 0
+        )
         end_time = datetime.now()
         status_val = "completed" if success else "failed"
 
         try:
             with self.get_cursor() as cur:
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO psychology.backup_logs 
                     (backup_type, backup_path, backup_size_bytes, status, started_at, completed_at, error_message, created_by)
                     VALUES ('full', %s, %s, %s, %s, %s, %s, %s::uuid);
-                """, (
-                    backup_filepath,
-                    file_size,
-                    status_val,
-                    start_time,
-                    end_time,
-                    err_msg if not success else None,
-                    user_id
-                ))
+                """,
+                    (
+                        backup_filepath,
+                        file_size,
+                        status_val,
+                        start_time,
+                        end_time,
+                        err_msg if not success else None,
+                        user_id,
+                    ),
+                )
         except Exception as log_err:
             logger.error(f"Не удалось записать журнал бэкапа: {log_err}")
 
@@ -2017,11 +2226,7 @@ class DatabaseService:
                 """)
                 row = cur.fetchone()
                 if row:
-                    return {
-                        "path": row[0],
-                        "size": row[1] or 0,
-                        "date": row[2]
-                    }
+                    return {"path": row[0], "size": row[1] or 0, "date": row[2]}
         except Exception as e:
             logger.error(f"Ошибка получения данных последнего бэкапа: {e}")
         return None
@@ -2032,6 +2237,7 @@ class DatabaseService:
         Формирует два листа: системные действия пользователей и факты выгрузки протоколов.
         """
         import pandas as pd
+
         with self.get_cursor() as cur:
             # 1. Журнал аудита действий пользователей
             cur.execute("""
@@ -2071,7 +2277,7 @@ class DatabaseService:
             for column in dataframe.select_dtypes(include=["datetimetz"]).columns:
                 dataframe[column] = dataframe[column].dt.tz_localize(None)
 
-        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+        with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
             df_audit.to_excel(writer, sheet_name="Аудит действий", index=False)
             df_reports.to_excel(writer, sheet_name="Выгрузки протоколов", index=False)
         logger.info(f"Журнал аудита успешно выгружен: {output_path}")
@@ -2079,36 +2285,42 @@ class DatabaseService:
     def change_user_password(self, user_id: str, new_password_hash: str) -> None:
         """Смена хеша пароля пользователя с фиксацией в журнале аудита."""
         with self.get_cursor() as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE psychology.users 
                 SET password_hash = %s, updated_at = CURRENT_TIMESTAMP 
                 WHERE id = %s::uuid;
-            """, (new_password_hash, str(user_id)))
-            
-            cur.execute("""
+            """,
+                (new_password_hash, str(user_id)),
+            )
+
+            cur.execute(
+                """
                 INSERT INTO psychology.audit_logs (user_id, action, table_name)
                 VALUES (%s::uuid, 'CHANGE_PASSWORD', 'users');
-            """, (str(user_id),))
+            """,
+                (str(user_id),),
+            )
             logger.info(f"Пароль пользователя ID={user_id} успешно изменен.")
-
-
-
-
-
-
-
 
     def close_all(self):
         """Безопасный разрыв всех активных коннектов и уничтожение пула (при закрытии приложения)."""
-        if not self._for_tests and self._connection_pool:
-            # Ожидание 1 сек перед полным освобождением ресурсов
-            self._connection_pool.closeall()
-            logger.info("📡 DatabaseService: Ресурсы Backend-ядра успешно освобождены.")
-    
+        if not self._connection_pool:
+            return
+
+        self._connection_pool.closeall()
+        if not self._for_tests:
+            type(self)._connection_pool = None
+        self._connection_pool = None
+        logger.info("DatabaseService: connection pool closed.")
+
     @classmethod
     def reset_for_tests(cls):
         """Сброс состояния синглтона для чистоты изоляции unit-тестов."""
+        instance = cls._instance
         cls._instance = None
-        if cls._connection_pool:
+        if instance is not None:
+            instance.close_all()
+        elif cls._connection_pool:
             cls._connection_pool.closeall()
-            cls._connection_pool = None
+        cls._connection_pool = None

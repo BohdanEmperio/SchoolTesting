@@ -4,12 +4,24 @@
 Настройки приложения
 """
 
+import os
 from pathlib import Path
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Загрузка переменных окружения
-load_dotenv()
+project_root = Path(__file__).parent.parent
+
+# Загрузка переменных окружения.
+# Основной профиль — .env. Второй профиль можно выбрать запуском:
+#   set DB_PROFILE=testdb
+#   python main.py
+database_profile = os.getenv("DB_PROFILE", "").strip().lower()
+env_file = (
+    project_root / f".env.{database_profile}"
+    if database_profile
+    else project_root / ".env"
+)
+load_dotenv(env_file, override=True)
 
 
 class Settings(BaseSettings):
@@ -53,7 +65,7 @@ class Settings(BaseSettings):
     
     # ✅ Pydantic V2 ConfigDict
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(env_file),
         env_file_encoding="utf-8",
         extra="ignore"
     )

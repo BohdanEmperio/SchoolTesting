@@ -5,6 +5,11 @@
 School Psychology Testing App - Authentication Window
 ============================================================
 Компонент: Окно входа в систему.
+
+ЭТАП 1 (14.11.2026): кнопка регистрации на экране входа показывается
+только при первом запуске — когда в базе нет ни одного активного
+администратора. Тогда она создаёт только администратора. В обычной
+работе сотрудников создаёт администратор в панели («Состав»).
 ============================================================
 """
 
@@ -112,16 +117,20 @@ class AuthWindow(QDialog):
         self.login_button.clicked.connect(self.login)
         layout.addWidget(self.login_button)
         
-        # --- БЛОК 5: РЕГИСТРАЦИЯ ---
+        # --- БЛОК 5: ПЕРВИЧНАЯ НАСТРОЙКА (только если нет администратора) ---
+        # Раньше здесь всегда была кнопка «Создать аккаунт», через которую
+        # любой мог стать администратором. Теперь кнопка создаётся всегда,
+        # но видна только при первом запуске (см. _update_first_run_ui).
         reg_layout = QHBoxLayout()
         reg_layout.addStretch()
-        
-        self.register_button = QPushButton("Создать аккаунт")
+
+        self.first_run_label = QLabel("Система ещё не настроена.")
+        self.register_button = QPushButton("Первичная настройка")
         self.register_button.setObjectName("secondary_button")
         self.register_button.setCursor(Qt.PointingHandCursor)
         self.register_button.clicked.connect(self.show_register_window)
-        
-        reg_layout.addWidget(QLabel("Нет аккаунта?"))
+
+        reg_layout.addWidget(self.first_run_label)
         reg_layout.addWidget(self.register_button)
         reg_layout.addStretch()
         layout.addLayout(reg_layout)
@@ -134,6 +143,19 @@ class AuthWindow(QDialog):
         
         self.setLayout(layout)
         self.setFixedSize(480, 580)
+
+        # Показать или скрыть кнопку первичной настройки
+        self._update_first_run_ui()
+
+    def _update_first_run_ui(self):
+        """
+        Кнопка «Первичная настройка» видна, только если в базе нет
+        активного администратора. has_active_admin() при ошибке БД
+        возвращает True, поэтому при сбое кнопка тоже скрыта.
+        """
+        first_run = not self.auth_service.has_active_admin()
+        self.first_run_label.setVisible(first_run)
+        self.register_button.setVisible(first_run)
 
     def toggle_password_visibility(self):
         """Метод переключения: Показать/Скрыть текст пароля"""
@@ -149,11 +171,20 @@ class AuthWindow(QDialog):
         self.password_input.setFocus()
 
     def show_register_window(self):
+        """Окно создания первого администратора (только при первом запуске)."""
+        # Повторная проверка: пока окно входа было открыто, администратора
+        # мог создать кто-то другой — тогда просто прячем кнопку.
+        if self.auth_service.has_active_admin():
+            self._update_first_run_ui()
+            return
+
         self.hide()
-        reg_win = RegisterWindow(self.auth_service, parent=self)
+        reg_win = RegisterWindow(self.auth_service, parent=self, first_run=True)
         if reg_win.exec() == QDialog.Accepted:
-            self.status_label.setText("✅ Регистрация успешна! Войдите.")
+            self.status_label.setText("✅ Администратор создан. Войдите в систему.")
         self.show()
+        # После создания администратора кнопка должна исчезнуть
+        self._update_first_run_ui()
 
     @Slot()
     def login(self):

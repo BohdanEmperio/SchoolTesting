@@ -67,10 +67,19 @@ class AdminDashboard(QWidget):
         # Инициализация сервисов
         self.auth_service = auth_service
         self.db_service = db_service
-        self.classes_service = ClassesService(db_service)
-        self.students_service = StudentsService(db_service)
-        self.users_service = UsersService(db_service)
         self.user_data = user_data
+        self.classes_service = ClassesService(
+            db_service,
+            actor_role=self.user_data.get("role"),
+        )
+        self.students_service = StudentsService(
+            db_service,
+            actor_role=self.user_data.get("role"),
+            actor_user_id=self.user_data.get("id"),
+        )
+        self.users_service = UsersService(db_service)
+        self.is_admin = self.user_data.get("role") == "admin"
+        self.is_psychologist = self.user_data.get("role") == "psychologist"
 
         # Инициализация ссылок на UI элементы (таблицы и фильтры)
         self.users_table = None
@@ -87,11 +96,34 @@ class AdminDashboard(QWidget):
         # Построение интерфейса
         self.setup_ui()
 
+    def require_admin_action(self, action_name: str) -> bool:
+        """Повторная серверно-независимая проверка для административных действий."""
+        if self.is_admin:
+            return True
+        QMessageBox.warning(
+            self,
+            "Недостаточно прав",
+            f"{action_name} доступно только администратору.",
+        )
+        return False
+
+    def require_class_management(self, action_name: str) -> bool:
+        """Разрешает управление классами администратору и психологу."""
+        if self.is_admin or self.is_psychologist:
+            return True
+        QMessageBox.warning(
+            self,
+            "Недостаточно прав",
+            f"{action_name} доступно только администратору или психологу.",
+        )
+        return False
+
     def setup_ui(self):
         """📏 Конструктор разметки главного экрана администратора"""
         layout = QVBoxLayout(self)
         layout.setSpacing(20)
         layout.setContentsMargins(20, 20, 20, 20)
+        is_admin = self.user_data.get("role") == "admin"
 
         # --- ВЕРХНИЙ БЛОК (ШАПКА) ---
         role = self.user_data.get("role", "admin")
@@ -129,29 +161,23 @@ class AdminDashboard(QWidget):
         self.tabs = QTabWidget()
         self.tabs.setObjectName("adminMainTabs")
 
-        # 1. Вкладка статистики и сводки
-        self.tabs.addTab(self.create_main_tab(), "📊 Сводка")
-        
-        # 2. Вкладка управления персоналом/аккаунтами
-        self.tabs.addTab(self.create_users_tab(), "👥 Состав")
-        
-        # 3. Вкладка учебных групп (Классы)
-        self.tabs.addTab(self.create_classes_tab(), "📚 Классы")
-        
-        # 4. Вкладка учащихся (Список и Excel импорт)
-        self.tabs.addTab(self.create_students_tab(), "🎓 Ученики")
-        
-        # 5. Вкладка архива завершенных тестов
-        self.tabs.addTab(self.create_results_tab(), "🏆 Результаты")
-        
-        # 6. Вкладка редактора психологических методик
-        self.tabs.addTab(self.create_tests_tab(), "📝 Тесты")
-        
-        # 7. Вкладка информации об организации
-        self.tabs.addTab(self.create_schools_tab(), "🏫 Школа")
-        
-        # 8. Вкладка системных сервисов
-        self.tabs.addTab(self.create_settings_tab(), "⚙️ Опции")
+        if is_admin:
+            # Администратор сохраняет полный доступ ко всем разделам.
+            self.tabs.addTab(self.create_main_tab(), "📊 Сводка")
+            self.tabs.addTab(self.create_users_tab(), "👥 Состав")
+            self.tabs.addTab(self.create_classes_tab(), "📚 Классы")
+            self.students_tab_index = self.tabs.addTab(self.create_students_tab(), "🎓 Ученики")
+            self.tabs.addTab(self.create_results_tab(), "🏆 Результаты")
+            self.tabs.addTab(self.create_tests_tab(), "📝 Тесты")
+            self.tabs.addTab(self.create_schools_tab(), "🏫 Школа")
+            self.tabs.addTab(self.create_settings_tab(), "⚙️ Опции")
+        else:
+            # Кабинет психолога ограничен рабочими разделами:
+            # классы, ученики, результаты тестирования и методики.
+            self.tabs.addTab(self.create_classes_tab(), "📚 Классы")
+            self.students_tab_index = self.tabs.addTab(self.create_students_tab(), "🎓 Ученики")
+            self.tabs.addTab(self.create_results_tab(), "🏆 Результаты")
+            self.tabs.addTab(self.create_tests_tab(), "📝 Тесты")
 
         layout.addWidget(self.tabs)
         self.setLayout(layout)
@@ -265,6 +291,12 @@ class AdminDashboard(QWidget):
         add_user_btn.setMinimumHeight(45)
         add_user_btn.setCursor(Qt.PointingHandCursor)
         add_user_btn.clicked.connect(self.on_add_user_clicked)
+        # ЭТАП 1: создавать сотрудников может только администратор.
+        # Психологу кнопка видна, но неактивна, с подсказкой «почему».
+        # (Это удобство интерфейса; настоящая проверка — в AuthService.)
+        if self.user_data.get("role") != "admin":
+            add_user_btn.setEnabled(False)
+            add_user_btn.setToolTip("Создавать учётные записи сотрудников может только администратор")
         action_layout.addWidget(add_user_btn)
 
         # 2. Переключение блокировки
@@ -353,9 +385,20 @@ class AdminDashboard(QWidget):
 
     @Slot()
     def on_add_user_clicked(self):
-        """Открытие формы регистрации нового сотрудника прямо из панели администратора"""
+        """Создание учётной записи сотрудника (только для администратора)."""
+        # ЭТАП 1: повторная проверка роли на случай, если кнопку
+        # каким-то образом нажали в обход блокировки.
+        if self.user_data.get("role") != "admin":
+            QMessageBox.warning(
+                self,
+                "Недостаточно прав",
+                "Создавать учётные записи сотрудников может только администратор.",
+            )
+            return
+
         from src.gui.register_window import RegisterWindow
-        dialog = RegisterWindow(self.auth_service, parent=self)
+        # created_by — кто создаёт: AuthService проверит, что это администратор
+        dialog = RegisterWindow(self.auth_service, parent=self, created_by=self.user_data)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_users_table()
             self.manual_refresh_all()
@@ -485,6 +528,9 @@ class AdminDashboard(QWidget):
         btn_edit = QPushButton("✏️ Переименовать")
         btn_del = QPushButton("🗑️ Расформировать")
         btn_del.setObjectName("cancelButton") # Цвет кнопки задается в qss
+        if not self.is_admin:
+            btn_del.setEnabled(False)
+            btn_del.setToolTip("Удаление и расформирование классов доступно только администратору")
 
         for b, method in [(btn_add, self.on_add_class_clicked), 
                           (btn_edit, self.on_edit_class_clicked), 
@@ -553,13 +599,15 @@ class AdminDashboard(QWidget):
         student_actions = [
             ("➕ Регистрация", self.on_add_student_clicked, None),
             ("📋 Согласие 152-ФЗ", self.on_bulk_consent_clicked, "background-color: #009688; color: white; font-weight: bold;"),
-            ("📥 Импорт Excel", self.on_import_excel_clicked, "background-color: #2196F3; color: white;"),
             ("✏️ Профиль", self.on_edit_student_clicked, None),
-            ("🗑️ Удалить", self.on_delete_student_clicked, "cancelButton"),
-            # ✨ ВОТ ЭТИ КНОПКИ ТЫ ИЩЕШЬ:
-            ("🔐 Открыть доступ", self.on_manage_access_clicked, "background-color: #FF9800; color: white; font-weight: bold;"),
-            ("🚫 Закрыть доступ", self.on_revoke_access_clicked, "background-color: #f44336; color: white;")
         ]
+        if self.is_admin:
+            student_actions.extend([
+                ("📥 Импорт Excel", self.on_import_excel_clicked, "background-color: #2196F3; color: white;"),
+                ("🗑️ Удалить", self.on_delete_student_clicked, "cancelButton"),
+                ("🔐 Открыть доступ", self.on_manage_access_clicked, "background-color: #FF9800; color: white; font-weight: bold;"),
+                ("🚫 Закрыть доступ", self.on_revoke_access_clicked, "background-color: #f44336; color: white;"),
+            ])
 
         for text, slot, style in student_actions:
             btn = QPushButton(text)
@@ -713,6 +761,9 @@ class AdminDashboard(QWidget):
         b_del_t.setMinimumHeight(45)
         b_del_t.setObjectName("cancelButton")
         b_del_t.clicked.connect(self.on_delete_test_clicked)
+        if not self.is_admin:
+            b_del_t.setEnabled(False)
+            b_del_t.setToolTip("Удаление методик доступно только администратору")
         
         t_btns.addWidget(b_add_t)
         t_btns.addWidget(b_edit_t) # Добавляем на панель
@@ -1301,7 +1352,7 @@ class AdminDashboard(QWidget):
         self.student_class_filter.addItem("🔎 Показать всех учащихся", None)
         
         try:
-            clss_rows = self.db_service.get_all_classes()
+            clss_rows = self.classes_service.get_all_classes()
             for cid, name, _, _ in clss_rows:
                 self.student_class_filter.addItem(f"Группа {name}", cid)
         except Exception:
@@ -1320,8 +1371,7 @@ class AdminDashboard(QWidget):
             index = self.student_class_filter.findData(cid)
             if index >= 0:
                 self.student_class_filter.setCurrentIndex(index)
-            # Переключение на вкладку учащихся (индекс 3)
-            self.tabs.setCurrentIndex(3)
+            self.tabs.setCurrentIndex(self.students_tab_index)
         except Exception:
             pass
 
@@ -1408,7 +1458,11 @@ class AdminDashboard(QWidget):
     # --- МЕТОДЫ-СЛОТЫ ДЛЯ CRUD УЧЕНИКОВ ---
 
     def on_add_student_clicked(self):
-        dialog = StudentDialog(self.db_service, self)
+        dialog = StudentDialog(
+            self.students_service,
+            self.classes_service,
+            self,
+        )
         if dialog.exec() == QDialog.Accepted:
             d = dialog.get_data()
             try:
@@ -1469,17 +1523,22 @@ class AdminDashboard(QWidget):
             "class_name": self.students_table.item(row, 7).text()
         }
         
-        dialog = StudentDialog(self.db_service, self, student_data=old_data)
+        dialog = StudentDialog(
+            self.students_service,
+            self.classes_service,
+            self,
+            student_data=old_data,
+        )
         if dialog.exec() == QDialog.Accepted:
             d = dialog.get_data()
             try:
                 # ✅ Добавлены d['birth_date'] и d['gender']
-                self.db_service.update_student(
+                self.students_service.update_student(
                     old_data['id'], d['first_name'], d['last_name'], 
                     d['middle_name'], d['birth_date'], d['gender'], d['class_id']
                 )
                 # ✅ Сохраняем согласие
-                self.db_service.set_student_consent(old_data['id'], d['consent'])
+                self.students_service.set_student_consent(old_data['id'], d['consent'])
                 self.manual_refresh_all()
                 self.manual_refresh_all()
             except Exception as e:
@@ -1488,6 +1547,8 @@ class AdminDashboard(QWidget):
     @Slot()
     def on_delete_student_clicked(self):
         """МАССОВОЕ ИЛИ ОДИНОЧНОЕ УДАЛЕНИЕ."""
+        if not self.require_admin_action("Удаление профилей учеников"):
+            return
         selection = self.students_table.selectionModel().selectedRows()
         if not selection:
             QMessageBox.warning(self, "Выбор не сделан", "Выберите строки (через зажатый Ctrl) для удаления.")
@@ -1500,7 +1561,7 @@ class AdminDashboard(QWidget):
             try:
                 for idx in selection:
                     sid = self.students_table.item(idx.row(), 0).text()
-                    self.db_service.delete_student(sid) # Метод вызывается по ID
+                    self.students_service.delete_student(sid)
                 
                 self.manual_refresh_all()
                 QMessageBox.information(self, "Готово", f"Очистка завершена. Записей удалено: {cnt}")
@@ -1514,6 +1575,8 @@ class AdminDashboard(QWidget):
     @Slot()
     def on_manage_access_clicked(self):
         """🔑 Массовая генерация доступов и экспорт списка в Excel."""
+        if not self.require_admin_action("Управление учётными доступами учеников"):
+            return
         selection = self.students_table.selectionModel().selectedRows()
         if not selection:
             QMessageBox.warning(self, "Выбор", "Сначала выделите учеников в таблице!")
@@ -1575,7 +1638,7 @@ class AdminDashboard(QWidget):
                 
                 # 2. Хешируем и записываем в БД (активируем аккаунт)
                 pwd_hash = self.auth_service.get_password_hash(raw_password)
-                self.db_service.create_student_account(student_uuid, login, pwd_hash)
+                self.students_service.create_student_account(student_uuid, login, pwd_hash)
                 
                 # 3. Добавляем в список для экспорта
                 export_data.append({
@@ -1648,7 +1711,7 @@ class AdminDashboard(QWidget):
             try:
                 for idx in selection:
                     sid = self.students_table.item(idx.row(), 0).text()
-                    self.db_service.set_student_consent(sid, True)
+                    self.students_service.set_student_consent(sid, True)
                 
                 QMessageBox.information(
                     self, 
@@ -1667,6 +1730,8 @@ class AdminDashboard(QWidget):
     @Slot()
     def on_revoke_access_clicked(self):
         """🚫 Мгновенно блокирует доступ ученикам в систему."""
+        if not self.require_admin_action("Закрытие учётных доступов учеников"):
+            return
         selection = self.students_table.selectionModel().selectedRows()
         if not selection:
             QMessageBox.warning(self, "Выбор", "Выберите учеников для закрытия доступа.")
@@ -1678,7 +1743,7 @@ class AdminDashboard(QWidget):
                     row_idx = index.row()
                     student_uuid = self.students_table.item(row_idx, 0).text()
                     # Меняем статус в таблице пользователей на 'is_active = False'
-                    self.db_service.revoke_student_access(student_uuid)
+                    self.students_service.revoke_student_access(student_uuid)
                 
                 QMessageBox.information(self, "Готово", "Доступы аннулированы. Ученики больше не смогут войти в кабинет.")
                 logger.info(f"Отозван доступ у {len(selection)} пользователей-студентов.")
@@ -1691,6 +1756,8 @@ class AdminDashboard(QWidget):
     @Slot()
     def on_import_excel_clicked(self):
         """📥 УМНЫЙ ИМПОРТ EXCEL (Senior Version V11.1)"""
+        if not self.require_admin_action("Импорт учеников из Excel"):
+            return
         
         # 1. Извлекаем ID выбранного класса из выпадающего списка (фильтра)
         target_cid = self.student_class_filter.currentData()
@@ -1770,7 +1837,7 @@ class AdminDashboard(QWidget):
                         gender = "Мужской" if g_raw.startswith('м') else ("Женский" if g_raw.startswith('ж') else "Не указан")
 
                     # 14. ✅ ВЫЗОВ ОБНОВЛЕННОГО МЕТОДА БД (Все 7 аргументов)
-                    self.db_service.add_student(
+                    self.students_service.add_imported_student(
                         stud_code, 
                         first_name, 
                         last_name, 
@@ -1799,28 +1866,41 @@ class AdminDashboard(QWidget):
     # --- МЕТОДЫ УПРАВЛЕНИЯ КЛАССАМИ (CRUD) ---
 
     def on_add_class_clicked(self):
+        if not self.require_class_management("Добавление классов"):
+            return
         from PySide6.QtWidgets import QInputDialog
         val, ok = QInputDialog.getText(self, "Создать", "Имя нового класса (например, 5Б):")
         if ok and val.strip():
             try:
-                g = int("".join(filter(str.isdigit, val)) or 0)
-                self.classes_service.add_class(val.strip(), g, "А")
+                class_name, grade, letter = self.classes_service.parse_class_name(val)
+                self.classes_service.add_class(class_name, grade, letter)
                 self.manual_refresh_all()
+            except ValueError as e:
+                QMessageBox.warning(self, "Неверное название класса", str(e))
             except Exception as e:
                 QMessageBox.critical(self, "DB Fail", str(e))
             return
 
     def on_edit_class_clicked(self):
+        if not self.require_class_management("Изменение названия класса"):
+            return
         r = self.classes_table.currentRow()
         if r >= 0:
             cid, oname = self.classes_table.item(r, 0).text(), self.classes_table.item(r, 1).text()
             from PySide6.QtWidgets import QInputDialog
             res, ok = QInputDialog.getText(self, "Правка", f"Изменение названия для {oname}:", text=oname)
             if ok: 
-                self.classes_service.update_class(cid, res.strip())
-                self.refresh_classes_table()
+                try:
+                    self.classes_service.update_class(cid, res)
+                    self.manual_refresh_all()
+                except ValueError as e:
+                    QMessageBox.warning(self, "Неверное название класса", str(e))
+                except Exception as e:
+                    QMessageBox.critical(self, "Ошибка БД", f"Не удалось изменить класс:\n{e}")
 
     def on_delete_class_clicked(self):
+        if not self.require_admin_action("Удаление классов"):
+            return
         r = self.classes_table.currentRow()
         if r >= 0:
             cid = self.classes_table.item(r, 0).text()
@@ -1839,6 +1919,8 @@ class AdminDashboard(QWidget):
     @Slot()
     def on_delete_test_clicked(self):
         """Массовое удаление выделенных методик."""
+        if not self.require_admin_action("Удаление методик"):
+            return
         # 1. Получаем список всех выделенных строк
         selection = self.tests_table.selectionModel().selectedRows()
         
@@ -1959,10 +2041,17 @@ class StudentDialog(QDialog):
     2. Редактирование существующего (с подгрузкой данных из БД).
     """
     
-    def __init__(self, db_service, parent=None, student_data=None):
+    def __init__(
+        self,
+        students_service: StudentsService,
+        classes_service: ClassesService,
+        parent=None,
+        student_data=None,
+    ):
         """
         Инициализация диалога.
-        :param db_service: Ссылка на DatabaseService для работы с SQL.
+        :param students_service: Сервис учеников с ролью текущего пользователя.
+        :param classes_service: Сервис классов с ролью текущего пользователя.
         :param student_data: dict, если передан — окно открывается в режиме правки.
         """
         super().__init__(parent)
@@ -1973,8 +2062,8 @@ class StudentDialog(QDialog):
 
         from PySide6.QtCore import QDate  # Нужно для работы с календарем
 
-        self.db_service = db_service
-        self.students_service = StudentsService(db_service)
+        self.students_service = students_service
+        self.classes_service = classes_service
         self.setWindowTitle("Личная карта учащегося (Служебный доступ)")
         self.setMinimumWidth(550) # Сделали чуть шире для новых полей
         
@@ -2040,7 +2129,7 @@ class StudentDialog(QDialog):
         
         # --- 📊 ПОДГРУЗКА РЕАЛЬНЫХ КЛАССОВ ИЗ БД ---
         try:
-            cl_list = self.db_service.get_all_classes()
+            cl_list = self.classes_service.get_all_classes()
             for cid, name, _, _ in cl_list:
                 self.cb_cl.addItem(f"Группа {name}", cid)
         except Exception as e: 

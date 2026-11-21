@@ -7,43 +7,48 @@
 """
 
 
-from config.settings import settings
+from config.settings import Settings
 
 
 class TestSettings:
-    """Тесты настроек"""
-    
-    def test_db_host(self):
-        """Проверка хоста БД"""
-        assert settings.DB_HOST in ['localhost', '127.0.0.1']
-    
-    def test_db_port(self):
-        """Проверка порта БД"""
+    """Configuration tests independent of developer-specific .env values."""
+
+    def test_settings_accept_database_configuration(self):
+        settings = Settings(
+            DB_HOST="127.0.0.1",
+            DB_PORT=5432,
+            DB_NAME="school_test",
+            DB_USER="app_user",
+            DB_PASSWORD="test_password",
+            DB_SCHEMA="psychology",
+        )
+
+        assert settings.DB_HOST == "127.0.0.1"
         assert settings.DB_PORT == 5432
-    
-    def test_db_name(self):
-        """Проверка имени БД для проекта"""
-        assert settings.DB_NAME in ['SchoolTest', 'school_psychology_db']
-    
-    def test_db_user(self):
-        """Проверка пользователя БД"""
-        # ✅ ИСПРАВЛЕНО: school_psych_app (из дампа Scoopoi.backup.pdf)
-        assert settings.DB_USER == 'school_psych_app'
-    
-    def test_db_schema(self):
-        """Проверка схемы БД"""
-        assert settings.DB_SCHEMA == 'psychology'
-    
-    def test_secret_key_exists(self):
-        """Проверка секретного ключа"""
-        assert len(settings.SECRET_KEY) >= 32
-    
-    def test_algorithm(self):
-        """Проверка алгоритма"""
-        assert settings.ALGORITHM == 'HS256'
-    
-    def test_database_url(self):
-        """Проверка URL БД"""
-        url = settings.database_url
-        assert 'postgresql://' in url
-        assert settings.DB_NAME in url
+        assert settings.DB_NAME == "school_test"
+        assert settings.DB_USER == "app_user"
+        assert settings.DB_SCHEMA == "psychology"
+
+    def test_database_url_uses_configured_values(self):
+        settings = Settings(
+            DB_HOST="db.example.test",
+            DB_PORT=5544,
+            DB_NAME="school_test",
+            DB_USER="app_user",
+            DB_PASSWORD="test_password",
+        )
+
+        assert settings.database_url == (
+            "postgresql://app_user:test_password@db.example.test:5544/school_test"
+        )
+
+    def test_security_and_token_settings_are_configurable(self):
+        settings = Settings(
+            SECRET_KEY="unit-test-key-that-is-not-a-production-secret",
+            ALGORITHM="HS256",
+            ACCESS_TOKEN_EXPIRE_MINUTES=15,
+        )
+
+        assert settings.SECRET_KEY.startswith("unit-test-")
+        assert settings.ALGORITHM == "HS256"
+        assert settings.ACCESS_TOKEN_EXPIRE_MINUTES == 15

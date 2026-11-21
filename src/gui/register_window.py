@@ -6,13 +6,19 @@ School Psychology Testing App - Registration Window
 ============================================================
 Компонент: Окно создания учетной записи сотрудника.
 Роли: Педагог-психолог, Администратор.
-Особенности: Адаптивный размер, поддержка масштабирования экрана.
+
+ЭТАП 1 (14.11.2026). Окно работает в двух режимах:
+  • first_run=True  — первичная настройка с экрана входа: в базе ещё нет
+                      администратора, можно создать ТОЛЬКО администратора;
+  • first_run=False — вызов из панели администратора («Состав» →
+                      «Новый аккаунт»): можно создать психолога или админа.
+Само окно ничего не решает о правах и не пишет в базу напрямую:
+всё делает AuthService.register_staff(), который ещё раз проверяет права.
 ============================================================
 """
 
 import logging
-import re
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -31,21 +37,35 @@ from PySide6.QtWidgets import (
 )
 
 from src.gui.styles.live_reload import load_stylesheet
-from src.services.database_service import DatabaseService
+from src.services.auth_service import AuthService, RegistrationError
 
 logger = logging.getLogger(__name__)
 
 
 class RegisterWindow(QDialog):
-    """📝 Окно регистрации учетных записей сотрудников с изменяемым размером"""
+    """📝 Окно регистрации учетных записей сотрудников"""
 
-    def __init__(self, auth_service, parent=None):
+    def __init__(
+        self,
+        auth_service: AuthService,
+        parent=None,
+        created_by: Optional[Dict[str, Any]] = None,
+        first_run: bool = False,
+    ):
         super().__init__(parent)
         self.auth_service = auth_service
-        self.db_service = DatabaseService()
+        # Кто открыл окно (словарь вошедшего пользователя) или None,
+        # если окно открыто с экрана входа при первичной настройке.
+        self.created_by = created_by
+        self.first_run = first_run
+        # ⚠️ Раньше здесь было self.db_service = DatabaseService() — второй пул
+        # соединений к БД. Теперь окно работает через общий auth_service.
 
-        self.setWindowTitle("Регистрация сотрудника")
-        # Комфортный стартовый размер и снятие блокировки фиксированного окна
+        self.setWindowTitle(
+            "Первичная настройка: администратор"
+            if first_run
+            else "Новая учётная запись сотрудника"
+        )
         self.resize(580, 680)
         self.setMinimumSize(460, 520)
         self.setStyleSheet(load_stylesheet())
@@ -53,16 +73,18 @@ class RegisterWindow(QDialog):
         self.setup_ui()
 
     def setup_ui(self) -> None:
-        """📐 Настройка разметки с поддержкой прокрутки и фиксированными кнопками"""
+        """📐 Разметка: прокручиваемая форма + закреплённые внизу кнопки"""
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(20, 15, 20, 15)
         root_layout.setSpacing(10)
 
-        # --- 1. ОБЛАСТЬ ПРОКРУТКИ ДЛЯ ФОРМЫ (SCROLL AREA) ---
+        # --- 1. ОБЛАСТЬ ПРОКРУТКИ ДЛЯ ФОРМЫ ---
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.NoFrame)
-        scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        scroll_area.setStyleSheet(
+            "QScrollArea { border: none; background: transparent; }"
+        )
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
@@ -73,15 +95,21 @@ class RegisterWindow(QDialog):
         header_layout = QVBoxLayout()
         header_layout.setSpacing(4)
 
-        title_icon = QLabel("📝")
+        title_icon = QLabel("🛠️" if self.first_run else "📝")
         title_icon.setAlignment(Qt.AlignCenter)
         title_icon.setStyleSheet("font-size: 32px;")
 
-        title_text = QLabel("Регистрация")
+        title_text = QLabel(
+            "Первичная настройка" if self.first_run else "Новый сотрудник"
+        )
         title_text.setObjectName("title")
         title_text.setAlignment(Qt.AlignCenter)
 
-        subtitle = QLabel("Создание учетной записи специалиста")
+        subtitle = QLabel(
+            "Создание первой учётной записи администратора"
+            if self.first_run
+            else "Создание учётной записи специалиста"
+        )
         subtitle.setObjectName("subtitle")
         subtitle.setAlignment(Qt.AlignCenter)
 
@@ -89,7 +117,6 @@ class RegisterWindow(QDialog):
         header_layout.addWidget(title_text)
         header_layout.addWidget(subtitle)
         content_layout.addLayout(header_layout)
-
         content_layout.addSpacing(6)
 
         # Поля ввода
@@ -100,21 +127,33 @@ class RegisterWindow(QDialog):
             content_layout, "Электронная почта (необязательно):", "example@school.local"
         )
         self.password_input = self._add_input_field(
-            content_layout, "Пароль (мин. 8 символов):*", "Введите пароль...", is_password=True
+            content_layout,
+            "Пароль (мин. 8 символов):*",
+            "Введите пароль...",
+            is_password=True,
         )
         self.confirm_input = self._add_input_field(
-            content_layout, "Повторите пароль:*", "Повторите пароль...", is_password=True
+            content_layout,
+            "Повторите пароль:*",
+            "Повторите пароль...",
+            is_password=True,
         )
 
-        # Выбор роли
+        # Выбор роли.
+        # При первичной настройке в списке только «Администратор»: первым
+        # обязательно создаётся админ, иначе некому будет управлять системой.
         self._add_label(content_layout, "Роль в системе:*")
         self.role_combo = QComboBox()
-        self.role_combo.addItem("Педагог-психолог", "psychologist")
+        if not self.first_run:
+            self.role_combo.addItem("Педагог-психолог", "psychologist")
         self.role_combo.addItem("Администратор", "admin")
         self.role_combo.setMinimumHeight(38)
+        self.role_combo.setEnabled(
+            not self.first_run
+        )  # при первом запуске менять нечего
         content_layout.addWidget(self.role_combo)
 
-        # Информационная плашка для учащихся
+        # Информационная плашка
         info_banner = QWidget()
         info_banner.setStyleSheet(
             "background-color: #E8F5E9; border-left: 4px solid #4CAF50; "
@@ -122,10 +161,18 @@ class RegisterWindow(QDialog):
         )
         banner_layout = QVBoxLayout(info_banner)
         banner_layout.setContentsMargins(8, 6, 8, 6)
-        lbl_info = QLabel(
-            "ℹ️ <b>Учащимся:</b> Создать профиль и учётную запись ученика может "
-            "администратор или педагог-психолог в разделе «Ученики»."
-        )
+        if self.first_run:
+            banner_text = (
+                "ℹ️ <b>Первый запуск.</b> В системе ещё нет администратора. "
+                "После его создания эта кнопка исчезнет с экрана входа, а остальных "
+                "сотрудников будет добавлять администратор в разделе «Состав»."
+            )
+        else:
+            banner_text = (
+                "ℹ️ <b>Учащимся:</b> профиль и учётную запись ученика создают "
+                "в разделе «Ученики»."
+            )
+        lbl_info = QLabel(banner_text)
         lbl_info.setWordWrap(True)
         lbl_info.setStyleSheet("color: #2E7D32; font-size: 12px; border: none;")
         banner_layout.addWidget(lbl_info)
@@ -135,7 +182,7 @@ class RegisterWindow(QDialog):
         scroll_area.setWidget(content_widget)
         root_layout.addWidget(scroll_area)
 
-        # --- 2. НИЖНЯЯ ПАНЕЛЬ С КНОПКАМИ (ВСЕГДА ЗАФИКСИРОВАНА ВНИЗУ) ---
+        # --- 2. НИЖНЯЯ ПАНЕЛЬ С КНОПКАМИ ---
         bottom_panel = QWidget()
         bottom_layout = QVBoxLayout(bottom_panel)
         bottom_layout.setContentsMargins(15, 0, 15, 0)
@@ -144,7 +191,7 @@ class RegisterWindow(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
 
-        self.btn_register = QPushButton("✅ Зарегистрироваться")
+        self.btn_register = QPushButton("✅ Создать")
         self.btn_register.setMinimumHeight(44)
         self.btn_register.setCursor(Qt.PointingHandCursor)
         self.btn_register.clicked.connect(self.handle_registration)
@@ -159,7 +206,7 @@ class RegisterWindow(QDialog):
         btn_layout.addWidget(self.btn_cancel)
         bottom_layout.addLayout(btn_layout)
 
-        # Статус ошибки
+        # Строка статуса (ошибки)
         self.status_label = QLabel("")
         self.status_label.setObjectName("status_error")
         self.status_label.setAlignment(Qt.AlignCenter)
@@ -169,9 +216,13 @@ class RegisterWindow(QDialog):
         root_layout.addWidget(bottom_panel)
 
     def _add_input_field(
-        self, layout: QVBoxLayout, label_text: str, placeholder: str, is_password: bool = False
+        self,
+        layout: QVBoxLayout,
+        label_text: str,
+        placeholder: str,
+        is_password: bool = False,
     ) -> QLineEdit:
-        """Вспомогательный метод создания поля ввода с подписью"""
+        """Вспомогательный метод: поле ввода с подписью"""
         self._add_label(layout, label_text)
         input_field = QLineEdit()
         input_field.setPlaceholderText(placeholder)
@@ -182,111 +233,67 @@ class RegisterWindow(QDialog):
         return input_field
 
     def _add_label(self, layout: QVBoxLayout, text: str) -> None:
-        """Вспомогательный метод добавления заголовка к полю"""
+        """Вспомогательный метод: подпись к полю"""
         lbl = QLabel(text)
         lbl.setStyleSheet("font-weight: bold; color: #555; margin-top: 2px;")
         layout.addWidget(lbl)
 
-    def validate_inputs(
-        self, login: str, email: Optional[str], password: str, confirm: str
-    ) -> Optional[str]:
-        """Валидация полей формы перед отправкой в БД"""
-        if not re.match(r"^[a-zA-Z0-9_]{3,30}$", login):
-            return "Логин должен содержать от 3 до 30 символов (латиница, цифры, '_')"
-        if email and not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email):
-            return "Неверный формат адреса электронной почты"
-        if len(password) < 8:
-            return "Пароль должен содержать не менее 8 символов"
-        if password != confirm:
-            return "Введенные пароли не совпадают"
-        return None
+    def _set_busy(self, busy: bool) -> None:
+        """Блокирует кнопку на время сохранения, чтобы не создать запись дважды."""
+        self.btn_register.setEnabled(not busy)
+        self.btn_register.setText("⏳ Сохранение..." if busy else "✅ Создать")
 
     def handle_registration(self) -> None:
-        """Процесс сохранения сотрудника в базе данных с валидацией ограничений СУБД"""
+        """Сбор полей формы и передача в AuthService.register_staff()."""
         login = self.login_input.text().strip()
-        raw_email = self.email_input.text().strip()
-        # Если почта не введена, передаем None (SQL NULL), чтобы не нарушать UNIQUE-индекс
-        email = raw_email if raw_email else None
+        email = self.email_input.text().strip() or None
+        # Пароль НЕ обрезаем: пробелы в пароле — часть пароля.
         password = self.password_input.text()
         confirm = self.confirm_input.text()
         role = self.role_combo.currentData()
 
-        # 1. Валидация входных данных
-        error = self.validate_inputs(login, email, password, confirm)
+        # 1. Быстрая проверка формата прямо в окне (без обращения к БД).
+        #    Та же функция ещё раз вызывается внутри register_staff().
+        error = AuthService.validate_staff_input(login, email, password, confirm)
         if error:
             self.status_label.setText(f"⚠️ {error}")
             return
 
-        self.btn_register.setEnabled(False)
-        self.btn_register.setText("⏳ Сохранение...")
-        QApplication.processEvents()
+        self._set_busy(True)
+        QApplication.processEvents()  # чтобы надпись «Сохранение...» успела отрисоваться
 
         try:
-            with self.db_service.get_cursor() as cursor:
-                # 2. Проверка уникальности логина
-                cursor.execute(
-                    "SELECT id FROM psychology.users WHERE login = %s;",
-                    (login,)
-                )
-                if cursor.fetchone():
-                    self.status_label.setText("❌ Этот логин уже занят. Выберите другой.")
-                    self.btn_register.setEnabled(True)
-                    self.btn_register.setText("✅ Зарегистрироваться")
-                    return
-
-                # 3. Проверка уникальности email (если он указан)
-                if email:
-                    cursor.execute(
-                        "SELECT id FROM psychology.users WHERE email = %s;",
-                        (email,)
-                    )
-                    if cursor.fetchone():
-                        self.status_label.setText("❌ Пользователь с таким Email уже зарегистрирован.")
-                        self.btn_register.setEnabled(True)
-                        self.btn_register.setText("✅ Зарегистрироваться")
-                        return
-
-                # 4. Хеширование пароля через bcrypt
-                password_hash = self.auth_service.get_password_hash(password)
-
-                # 5. Запись сотрудника с привязкой к школе по умолчанию
-                cursor.execute(
-                    """
-                    INSERT INTO psychology.users (
-                        login,
-                        email,
-                        password_hash,
-                        role,
-                        school_id,
-                        student_id,
-                        is_active,
-                        is_verified
-                    )
-                    VALUES (%s, %s, %s, %s::psychology.user_role, %s, NULL, TRUE, TRUE)
-                    RETURNING id;
-                    """,
-                    (
-                        login,
-                        email,
-                        password_hash,
-                        role,
-                        DatabaseService.DEFAULT_SCHOOL_ID,
-                    ),
-                )
-                new_user = cursor.fetchone()
-
-                if new_user:
-                    logger.info(f"✅ Успешно зарегистрирован сотрудник: {login} (роль: {role})")
-                    QMessageBox.information(
-                        self,
-                        "Регистрация завершена",
-                        f"Учетная запись '{login}' успешно создана!\n\n"
-                        "Теперь вы можете войти в систему с указанными данными.",
-                    )
-                    self.accept()
-
+            # 2. Всё остальное — права, уникальность, запись — в сервисе.
+            self.auth_service.register_staff(
+                login=login,
+                email=email,
+                password=password,
+                confirm=confirm,
+                role=role,
+                created_by=self.created_by,
+            )
+        except RegistrationError as e:
+            # Ожидаемая ошибка (логин занят, нет прав и т.п.) — показываем как есть.
+            self.status_label.setText(f"❌ {e}")
+            self._set_busy(False)
+            return
         except Exception as e:
-            logger.error(f"Ошибка при регистрации пользователя {login}: {e}", exc_info=True)
-            self.status_label.setText(f"❌ Ошибка БД: {str(e)[:50]}")
-            self.btn_register.setEnabled(True)
-            self.btn_register.setText("✅ Зарегистрироваться")
+            # Неожиданная ошибка (например, нет связи с БД) — подробности в лог.
+            logger.error(f"Ошибка при создании сотрудника {login}: {e}", exc_info=True)
+            self.status_label.setText(
+                "❌ Ошибка базы данных. Подробности в журнале app.log."
+            )
+            self._set_busy(False)
+            return
+
+        QMessageBox.information(
+            self,
+            "Учётная запись создана",
+            f"Учётная запись «{login}» создана.\n\n"
+            + (
+                "Теперь войдите в систему с указанными данными."
+                if self.first_run
+                else "Сотрудник может войти в систему с указанными данными."
+            ),
+        )
+        self.accept()

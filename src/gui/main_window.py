@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QStatusB
 
 from src.gui.admin.admin_dashboard import AdminDashboard
 from src.gui.auth_window import AuthWindow
+from src.gui.psychologist.psychologist_dashboard import PsychologistDashboard
 from src.gui.student.student_dashboard import StudentDashboard
 from src.gui.styles.live_reload import load_stylesheet
 
@@ -93,9 +94,10 @@ class MainWindow(QMainWindow):
             self.stacked_widget.removeWidget(widget)
         
         # ✅ Определяем кабинет в зависимости от роли
-        if role in ['admin', 'psychologist']:
-            # Администратор и психолог (используют одну логику панели или разную)
+        if role == 'admin':
             dashboard = AdminDashboard(self.auth_service, self.db_service, user_data, self)
+        elif role == 'psychologist':
+            dashboard = PsychologistDashboard(self.auth_service, self.db_service, user_data, self)
         elif role == 'student':
             # Кабинет ученика
             dashboard = StudentDashboard(self.auth_service, self.db_service, user_data, self)

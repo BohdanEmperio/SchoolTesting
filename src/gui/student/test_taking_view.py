@@ -44,14 +44,14 @@ class TestTakingView(QDialog):
 
     def __init__(
         self,
-        db_service: Any,
+        tests_service: Any,
         test_id: str,
         test_name: str,
         student_id: Optional[str],
         parent: Optional[QDialog] = None,
     ):
         super().__init__(parent)
-        self.db_service = db_service
+        self.tests_service = tests_service
         self.test_id = str(test_id)
         self.test_name = test_name
         self.student_id = str(student_id) if student_id else None
@@ -175,11 +175,11 @@ class TestTakingView(QDialog):
 
             # 2. Создаем сессию в БД
             self.session_id = str(
-                self.db_service.create_test_session(self.student_id, self.test_id)
+                self.tests_service.create_test_session(self.student_id, self.test_id)
             )
 
             # 3. Загружаем вопросы
-            self.questions = self.db_service.get_full_test_questions(self.test_id)
+            self.questions = self.tests_service.get_full_test_questions(self.test_id)
 
             if not self.questions:
                 QMessageBox.warning(
@@ -322,9 +322,6 @@ class TestTakingView(QDialog):
         """
         try:
             current_q = self.questions[self.current_idx]
-            q_id = str(current_q["id"])
-            q_text = str(current_q["text"])
-            q_order = int(current_q["order"])
             choice_text = "Да" if value == 1 else "Нет"
             weights: Dict[str, Any] = {"Да": 1, "Нет": 0}
             parsed_options = self._parse_options(current_q.get("options"))
@@ -395,7 +392,7 @@ class TestTakingView(QDialog):
         choice_text: str,
         answer_data: Dict[str, Any],
     ) -> None:
-        self.db_service.save_answer(
+        self.tests_service.save_answer(
             sess_id=self.session_id,
             q_num=int(question["order"]),
             point_val=points,
@@ -422,8 +419,9 @@ class TestTakingView(QDialog):
             self.btn_submit_choices.setEnabled(False)
 
             # Финализация теста в БД
-            if hasattr(self.db_service, "finalize_test_and_calculate"):
-                self.db_service.finalize_test_and_calculate(self.session_id, self.test_id)
+            self.tests_service.finalize_test_and_calculate(
+                self.session_id, self.test_id
+            )
 
             QMessageBox.information(
                 self,

@@ -10,18 +10,34 @@ from src.services.auth_service import AuthService
 
 class TestServices:
     """Тесты сервисов"""
-    
-    def test_database_singleton(self):
-        """Проверка одиночки БД"""
+
+    def test_database_singleton_does_not_open_a_connection(self, monkeypatch):
+        class FakePool:
+            closed = False
+
+            def closeall(self):
+                self.closed = True
+
+        pools = []
+
+        def initialize_without_connection(service):
+            pool = FakePool()
+            pools.append(pool)
+            service._connection_pool = pool
+
+        monkeypatch.setattr(
+            DatabaseService, "_initialize_pool", initialize_without_connection
+        )
         db1 = DatabaseService()
         db2 = DatabaseService()
         assert db1 is db2
-    
-    def test_auth_service_init(self, db_service):
-        """Инициализация сервиса аутентификации"""
-        auth = AuthService(db_service)
-        assert auth.db is db_service
-    
+        DatabaseService.reset_for_tests()
+        assert pools[0].closed
+
+    def test_auth_service_init(self, fake_database):
+        auth = AuthService(fake_database)
+        assert auth.db is fake_database
+
     def test_password_hash_different(self, auth_service):
         """Разные хеши для одинаковых паролей"""
         password = "Test123!"  # ✅ Короткий пароль

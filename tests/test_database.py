@@ -1,27 +1,15 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Тесты подключения к базе данных
-"""
+"""Read-only PostgreSQL schema integration checks."""
 
-# ❌ УДАЛИТЬ: import pytest
-# ❌ УДАЛИТЬ: from src.services.database_service import DatabaseService
-
+import pytest
 from config.settings import settings
+
+pytestmark = pytest.mark.integration
 
 
 class TestDatabase:
-    """Тесты базы данных"""
-    
-    def test_connection(self, db_service):
-        """Проверка подключения к БД"""
-        with db_service.get_cursor() as cursor:
-            cursor.execute("SELECT 1")
-            result = cursor.fetchone()
-            assert result[0] == 1
-    
+    """Tests that require the isolated test database."""
+
     def test_schema_exists(self, db_service):
-        """Проверка существования схемы"""
         with db_service.get_cursor() as cursor:
             cursor.execute("""
                 SELECT schema_name 
@@ -30,23 +18,34 @@ class TestDatabase:
             """, (settings.DB_SCHEMA,))
             result = cursor.fetchone()
             assert result is not None
-    
-    def test_tables_count(self, db_service):
-        """Проверка количества таблиц"""
+
+    def test_required_tables_exist(self, db_service):
+        required_tables = {
+            "users",
+            "students",
+            "classes",
+            "test_sessions",
+            "test_results",
+        }
         with db_service.get_cursor() as cursor:
             cursor.execute("""
-                SELECT COUNT(*) 
+                SELECT table_name
                 FROM information_schema.tables 
-                WHERE table_schema = %s
-            """, (settings.DB_SCHEMA,))
-            count = cursor.fetchone()[0]
-            assert count >= 15  # Минимум 15 таблиц
-    
-    def test_users_table(self, db_service):
-        """Проверка таблицы пользователей"""
+                WHERE table_schema = %s AND table_name = ANY(%s)
+            """, (settings.DB_SCHEMA, sorted(required_tables)))
+            existing_tables = {row[0] for row in cursor.fetchall()}
+
+        assert existing_tables == required_tables
+
+    def test_users_table_has_authentication_columns(self, db_service):
         with db_service.get_cursor() as cursor:
             cursor.execute("""
-                SELECT COUNT(*) FROM psychology.users
-            """)
-            count = cursor.fetchone()[0]
-            assert count >= 1  # Хотя бы админ
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = %s
+                  AND table_name = 'users'
+                  AND column_name = ANY(%s)
+            """, (settings.DB_SCHEMA, ["login", "password_hash", "role", "is_active"]))
+            columns = {row[0] for row in cursor.fetchall()}
+
+        assert columns == {"login", "password_hash", "role", "is_active"}

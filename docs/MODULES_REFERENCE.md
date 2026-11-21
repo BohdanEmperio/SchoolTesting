@@ -568,46 +568,36 @@ Dataclass результата: идентификатор, сессия, уро
 
 ### `tests/conftest.py`
 
-Общие pytest-фикстуры.
+Общие pytest-фикстуры. Обычный прогон фиксирует профиль `testdb` и не открывает
+соединение с БД. DB fixture доступна только интеграционным тестам при явном
+включении `RUN_DB_INTEGRATION_TESTS=1`, `DB_PROFILE=testdb` и проверке, что
+`.env.testdb` указывает не на ту же БД, что `.env`.
 
-- `reset_database_service()` - autouse-фикстура, после каждого теста вызывает сброс состояния `DatabaseService`.
-- `db_service()` - создает тестовый экземпляр `DatabaseService(for_tests=True)`.
-- `auth_service(db_service)` - создает `AuthService` на базе фикстуры БД.
-- `test_user()` - возвращает тестовые данные пользователя.
+- `reset_database_service()` - сбрасывает singleton `DatabaseService` после каждого теста.
+- `db_service()` - создаёт отдельный пул только для включённых интеграционных тестов.
+- `auth_service()` - сервис аутентификации с inert-зависимостью БД.
+- `test_user()` - возвращает тестовые, не production-данные.
 
 ### `tests/test_auth.py`
 
-#### `TestAuth`
-
-- `test_password_hash()` - проверяет, что bcrypt-хеш отличается от исходного пароля.
-- `test_password_verify()` - проверяет правильный и неправильный пароль.
-- `test_token_creation()` - проверяет создание непустого JWT.
-- `test_token_decode()` - проверяет обратное декодирование claims.
-- `test_admin_exists()` - проверяет наличие системного администратора, а при недоступной БД пропускает тест.
+Проверяет bcrypt, JWT, fail-closed логику `has_active_admin()` и правила
+регистрации сотрудников на fake cursor; не использует учётные записи из реальной
+БД.
 
 ### `tests/test_config.py`
 
-#### `TestSettings`
-
-- `test_db_host()` - проверяет допустимый host;
-- `test_db_port()` - проверяет порт 5432;
-- `test_db_name()` - проверяет имя БД;
-- `test_db_user()` - проверяет имя пользователя;
-- `test_db_schema()` - проверяет схему `psychology`;
-- `test_secret_key_exists()` - проверяет минимальную длину секретного ключа;
-- `test_algorithm()` - проверяет `HS256`;
-- `test_database_url()` - проверяет сборку PostgreSQL URL.
+Проверяет конфигурацию и сборку PostgreSQL URL на локальных тестовых значениях,
+не предполагая имя БД, пользователя или секрет из `.env`.
 
 ### `tests/test_database.py`
 
-#### `TestDatabase`
+Read-only проверки схемы и обязательных таблиц PostgreSQL. Помечены
+`integration`; запускаются только с явно включённым профилем `.env.testdb`.
 
-- `test_connection()` - выполняет `SELECT 1`;
-- `test_schema_exists()` - проверяет наличие схемы;
-- `test_tables_count()` - проверяет минимум 15 таблиц;
-- `test_users_table()` - проверяет наличие хотя бы одного пользователя.
+### `tests/test_database_service.py`
 
-Тесты требуют работающий PostgreSQL и корректный `.env`.
+Проверяет чтение владельца сессии по fake cursor и освобождение изолированного
+пула без подключения к PostgreSQL.
 
 ### `tests/test_models.py`
 
@@ -619,36 +609,31 @@ Dataclass результата: идентификатор, сессия, уро
 
 ### `tests/test_services.py`
 
-#### `TestServices`
-
-- `test_database_singleton()` - проверяет, что два обычных вызова возвращают один объект;
-- `test_auth_service_init()` - проверяет dependency injection;
-- `test_password_hash_different()` - проверяет разные bcrypt-хеши для одного пароля и их валидность.
+Проверяет singleton без создания реального подключения, dependency injection и
+повторное хеширование пароля.
 
 ### `tests/test_gui.py`
 
-#### `TestGUI`
-
-Класс помечен `skip`, так как для GUI требуется дисплей.
-
-- `test_import_pyside6()` - проверяет импорт Qt;
-- `test_import_main_window()` - проверяет импорт главного окна;
-- `test_import_auth_window()` - проверяет импорт окна авторизации.
-
-### `tests/test_db_connection.py`
-
-Диагностический скрипт, а не обычный набор pytest-тестов. Подключается к PostgreSQL, печатает версию сервера, наличие схемы, число таблиц и текущего пользователя.
-
-### `tests/test_password.py`
-
-Диагностический скрипт проверки пароля подключения к PostgreSQL через параметры из `.env`.
+Offscreen smoke-тесты импортов Qt, главного окна и окна авторизации.
 
 ### `tests/run_tests.py`
 
-Скрипт последовательного запуска выбранных pytest-файлов.
+Совместимый wrapper для полного безопасного по умолчанию pytest-набора.
 
-- `run_command(command, description)` - запускает команду с таймаутом 120 секунд, обрабатывает отсутствие тестов и ошибки.
-- `main()` - запускает набор конфигурационных, БД, auth, модельных и сервисных тестов и печатает итог.
+### `tests/test_classes_service.py`, `tests/test_students_service.py`, `tests/test_tests_service.py`
+
+Проверяют формат классов и ролевой доступ к классам, профилям, согласию,
+регистрации, результатам и сессиям тестирования.
+
+### `tests/test_role_dashboards.py`
+
+Offscreen UI-проверки ролевых кабинетов и регистрации ученика психологом, с
+созданием учётной записи или без неё.
+
+### `tests/test_report_service.py`
+
+Проверяет классификацию шкал и генерацию читаемого DOCX для методики с выбором
+вариантов без подключения к БД.
 
 ## 16. Вспомогательные скрипты верхнего уровня
 

@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 from src.gui.student.test_taking_view import TestTakingView
 from src.gui.styles.live_reload import load_stylesheet
 from src.services.students_service import StudentsService
+from src.services.tests_service import TestsService
 
 # Настройка логгера для текущего модуля
 logger = logging.getLogger(__name__)
@@ -55,8 +56,17 @@ class StudentDashboard(QWidget):
         super().__init__(parent)
         self.auth_service = auth_service
         self.db_service = db_service
-        self.students_service = StudentsService(db_service)
         self.user_data = user_data
+        self.students_service = StudentsService(
+            db_service,
+            actor_role=self.user_data.get("role"),
+            actor_user_id=self.user_data.get("id"),
+        )
+        self.tests_service = TestsService(
+            db_service,
+            actor_role=self.user_data.get("role"),
+            actor_student_id=self.user_data.get("student_id"),
+        )
 
         # Инициализация ссылок на UI элементы
         self.tests_table: Optional[QTableWidget] = None
@@ -240,7 +250,7 @@ class StudentDashboard(QWidget):
 
         # --- БЛОК 2: СПИСОК ДОСТУПНЫХ МЕТОДИК ---
         try:
-            available_tests = self.db_service.get_available_tests()
+            available_tests = self.tests_service.get_available_tests()
             
             self.tests_table.setRowCount(0)
             if available_tests:
@@ -270,7 +280,7 @@ class StudentDashboard(QWidget):
         if student_id and str(student_id) != "None":
             try:
                 # Ожидаем: (test_name, overall_score, risk_level, summary_text, created_at)
-                history_data = self.db_service.get_student_results(student_id)
+                history_data = self.tests_service.get_student_results(student_id)
                 self.results_table.setRowCount(0)
                 
                 if history_data:
@@ -351,7 +361,7 @@ class StudentDashboard(QWidget):
         try:
             # 2. Извлекаем расширенную структуру теста (вопросы, шкалы, мета-данные)
             # В DatabaseService этот метод теперь возвращает (questions, scales, meta_dict)
-            _, _, meta = self.db_service.get_test_full_structure(test_id_str)
+            _, _, meta = self.tests_service.get_test_full_structure(test_id_str)
             
             # 3. Визуализация окна вводного инструктажа (Intro)
             intro_dialog = TestIntroDialog(
@@ -367,7 +377,7 @@ class StudentDashboard(QWidget):
                 stud_id = self.user_data.get('student_id')
                 
                 test_engine = TestTakingView(
-                    db_service=self.db_service, 
+                    tests_service=self.tests_service,
                     test_id=test_id_str, 
                     test_name=meta.get('name', 'Тест'), 
                     student_id=stud_id, 
